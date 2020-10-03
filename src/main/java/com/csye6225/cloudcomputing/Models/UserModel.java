@@ -1,10 +1,12 @@
 package com.csye6225.cloudcomputing.Models;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.GenericGenerator;
 
 import javax.persistence.*;
 import java.util.Date;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -23,6 +25,14 @@ public class UserModel {
     private String lastName;
     private Date createdDatetime;
     private Date updatedDatetime;
+
+    @OneToMany(
+            mappedBy = "userId",
+            cascade = CascadeType.PERSIST,
+            fetch = FetchType.LAZY
+    )
+    @JsonIgnore
+    private Set<QuestionModel> questions;
 
 
     public UserModel(){
