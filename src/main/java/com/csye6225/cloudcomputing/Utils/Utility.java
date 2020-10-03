@@ -38,6 +38,7 @@ public class Utility {
         return new String(decodedBytes).split(":");
     }
 
+
     public boolean validateAuthorization(String value, String username, String passwordHash) {
         String[] userDetails = this.parseAuthorizationToken(value);
         return value == null || value.equals("") || userDetails.length != 2

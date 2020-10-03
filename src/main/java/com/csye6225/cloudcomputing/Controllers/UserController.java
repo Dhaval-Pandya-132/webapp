@@ -64,9 +64,10 @@ public class UserController {
     }
 
     @RequestMapping(value = "v1/user/self", method = RequestMethod.GET, produces = "application/json")
-    public ResponseEntity<Map<String, String>> getUserDetail(@RequestBody UserModel user, @RequestHeader(value = "Authorization") String value) {
-        UserModel um = us.getUserByEmailAddress(user.getUsername());
-        if (um == null || ut.validateAuthorization(value, user.getUsername(), um.getPassword())
+    public ResponseEntity<Map<String, String>> getUserDetail(@RequestHeader(value = "Authorization") String value) {
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
         ) {
             return new ResponseEntity<>(Collections.singletonMap("msg", "Unauthorized request"), HttpStatus.UNAUTHORIZED);
         }
@@ -81,6 +82,14 @@ public class UserController {
         if (um == null || ut.validateAuthorization(value, user.getUsername(), um.getPassword())
         ) {
             return new ResponseEntity<>(Collections.singletonMap("msg", "Unauthorized request"), HttpStatus.UNAUTHORIZED);
+        }
+        if (!ut.checkPasswordStrength(user.getPassword())) {
+            return new ResponseEntity<>(
+                    Collections.singletonMap("msg", "Password length should be greater than 8 character " +
+                            ", and contains at least 1 special character,digit and 1 Upper case character" +
+                            "and it should not contain more than 4 sequences of  2 repeating characters " +
+                            "and should not contain passwords more than 4 occurrences of the same character"),
+                    HttpStatus.BAD_REQUEST);
         }
         user.setId(um.getId());
         um.setFirstName(user.getFirstName());
