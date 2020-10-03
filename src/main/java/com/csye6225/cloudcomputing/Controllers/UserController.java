@@ -151,11 +151,14 @@ public class UserController {
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
-
+        if (cs.getCategoryByName(Question.getCategories().get(0).getCategory()) == null) // check category is already exist or not
+        {
+            cs.save(Question.getCategories().get(0));
+        }
         qmw.setUpdatedDatetime(new Date());
         qmw.setQuestionText(Question.getQuestionText());
         qmw.setCategories(Question.getCategories());
-
+        qs.save(qmw);
 //        QuestionModel qm = new QuestionModel(new Date(),new Date(), Question.getQuestionText(),um, Question.getCategories().get(0));
 //        if (cs.getCategoryByName(Question.getCategories().get(0).getCategory()) == null) // check category is already exist or not
 //        {
