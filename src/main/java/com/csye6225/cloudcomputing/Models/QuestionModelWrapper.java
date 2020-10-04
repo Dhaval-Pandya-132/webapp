@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-
+@Component
 public class QuestionModelWrapper extends QuestionModel {
     List<CategoryModel> categories;
     List<AnswerModel> answers;
@@ -15,7 +15,7 @@ public class QuestionModelWrapper extends QuestionModel {
     }
 
     public QuestionModelWrapper(QuestionModel qm) {
-        super(qm.getCreatedDatetime(), qm.getUpdatedDatetime(), qm.getQuestionText(), qm.getUserId(),qm.getCategoryId());
+        super(qm.getQuestionId(),qm.getCreatedDatetime(), qm.getUpdatedDatetime(), qm.getQuestionText(), qm.getUserId(),qm.getCategoryId());
         this.categories = new ArrayList<>();
         this.answers= new ArrayList<>();
     }

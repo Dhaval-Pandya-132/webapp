@@ -15,8 +15,6 @@ import java.util.UUID;
 public class QuestionModel implements Serializable {
 
     @Id
-    @GeneratedValue( generator = "uuid2" )
-    @GenericGenerator( name = "uuid2", strategy = "uuid2" )
     @Column(columnDefinition = "BINARY(16)" )
     private UUID questionId = UUID.randomUUID();
     private Date createdDatetime;
@@ -39,12 +37,13 @@ public class QuestionModel implements Serializable {
     }
 
 
-    public QuestionModel(Date createdDatetime, Date updatedDatetime, String questionText, UserModel userId, CategoryModel categoryId) {
+    public QuestionModel(UUID questionId, Date createdDatetime, Date updatedDatetime, String questionText, UserModel userId, CategoryModel categoryId) {
         this.createdDatetime = createdDatetime;
         this.updatedDatetime = updatedDatetime;
         this.questionText = questionText;
         this.userId = userId;
         this.categoryId = categoryId;
+        this.questionId= questionId;
     }
 
     public CategoryModel getCategoryId() {

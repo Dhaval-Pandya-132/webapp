@@ -1,5 +1,6 @@
 package com.csye6225.cloudcomputing.Controllers;
 
+import com.csye6225.cloudcomputing.Models.AnswerModel;
 import com.csye6225.cloudcomputing.Models.QuestionModel;
 import com.csye6225.cloudcomputing.Models.QuestionModelWrapper;
 import com.csye6225.cloudcomputing.Models.UserModel;
@@ -116,22 +117,30 @@ public class UserController {
 
     @RequestMapping(value = "v1/question", method = RequestMethod.POST, produces = "application/json")
     @ResponseBody
-    public ResponseEntity<QuestionModelWrapper> createQuestion(@RequestBody QuestionModelWrapper Question, @RequestHeader(value = "Authorization") String value) {
+    public ResponseEntity<QuestionModel> createQuestion(@RequestBody QuestionModelWrapper Question, @RequestHeader(value = "Authorization") String value) {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
-        QuestionModel qm = new QuestionModel(new Date(), new Date(), Question.getQuestionText(), um, Question.getCategories().get(0));
+        QuestionModel qm = new QuestionModel();
+        qm.setQuestionId(UUID.randomUUID());
+        qm.setCreatedDatetime(new Date());
+        qm.setUpdatedDatetime(new Date());
+        qm.setUserId(um);
+        qm.setCategoryId(Question.getCategories().get(0));
+        qm.setQuestionText(Question.getQuestionText());
+
         if (cs.getCategoryByName(Question.getCategories().get(0).getCategory()) == null) // check category is already exist or not
         {
             cs.save(Question.getCategories().get(0));
         }
-        QuestionModelWrapper qmw = qs.save(qm);
+        QuestionModel qmOut = qs.save(qm);
+
 
         return new ResponseEntity<>(
-                qmw,
+                qmOut,
                 HttpStatus.CREATED);
     }
 
@@ -143,7 +152,7 @@ public class UserController {
             , @RequestHeader(value = "Authorization") String value) {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
-        System.out.println("param "+ questionId );
+        System.out.println("param " + questionId);
         QuestionModelWrapper qmw = qs.findQuestionByQuestionId(questionId);
 
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
@@ -171,10 +180,33 @@ public class UserController {
                 HttpStatus.CREATED);
     }
 
+    @RequestMapping(value = "v1/question/{questionId}", method = RequestMethod.POST, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<AnswerModel> saveAnswer(@PathVariable UUID questionId
+            , @RequestBody AnswerModel am
+            , @RequestHeader(value = "Authorization") String value) {
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        QuestionModelWrapper qmw = qs.findQuestionByQuestionId(questionId);
+
+        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        ) {
+            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+        AnswerModel amOut = new AnswerModel();
+        amOut.setAnswerText(am.getAnswerText());
+        amOut.setUserId(um);
+        // amOut.setQuestionId();
+
+        return new ResponseEntity<>(
+                am,
+                HttpStatus.CREATED);
+    }
+
 
     //    @exception handling
-    @ExceptionHandler({NullPointerException.class, IllegalArgumentException.class, JsonProcessingException.class, JsonParseException.class})
-    void handleRuntimeException(NullPointerException e, HttpServletResponse response) throws IOException {
-        response.sendError(HttpStatus.BAD_REQUEST.value());
-    }
+//    @ExceptionHandler({NullPointerException.class, IllegalArgumentException.class, JsonProcessingException.class, JsonParseException.class})
+//    void handleRuntimeException(NullPointerException e, HttpServletResponse response) throws IOException {
+//        response.sendError(HttpStatus.BAD_REQUEST.value());
+//    }
 }

@@ -10,5 +10,4 @@ import java.util.UUID;
 public interface QuestionRepository extends JpaRepository<QuestionModel, UUID> {
     QuestionModel findFirstByQuestionId(UUID QuestionId);
     List<QuestionModel>  findAll();
-
 }

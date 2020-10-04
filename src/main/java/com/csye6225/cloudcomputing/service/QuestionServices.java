@@ -20,29 +20,30 @@ public class QuestionServices {
     @Autowired
     private QuestionRepository repo;
 
-    public QuestionModelWrapper save(QuestionModel um) {
+    public QuestionModel save(QuestionModel um) {
         QuestionModelWrapper qwm = new QuestionModelWrapper(um);
-        qwm.getCategories().add(um.getCategoryId());
+//        qwm.getCategories().add(um.getCategoryId());
+//        qwm.setQuestionId(um.getQuestionId());
+     //  repo.findAll();
         repo.save(um);
-        return qwm;
+        return um;
     }
 
     public QuestionModelWrapper findQuestionByQuestionId(UUID questionId) {
-        QuestionModelWrapper qwm = null;
-        List<QuestionModel> qmList = repo.findAll();
-        for (QuestionModel qm:
-             qmList) {
+      //  QuestionModelWrapper qwm = null;
+//        List<QuestionModel> qmList = repo.findAll();
+//        for (QuestionModel qm:
+//             qmList) {
+//            if(qm.getQuestionId().equals(questionId))
+//            {
+//                System.out.println(qm.getQuestionId());
+//             qwm = new QuestionModelWrapper(qm);
+//             return qwm;
+//            }
+//
+//        }
 
-            if(qm.getQuestionId().equals(questionId))
-            {
-                System.out.println(qm.getQuestionId());
-             qwm = new QuestionModelWrapper(repo.findFirstByQuestionId(questionId));
-             return qwm;
-            }
-
-        }
-
-        return qwm;
+        return new QuestionModelWrapper(repo.findFirstByQuestionId(questionId));
     }
 
 
