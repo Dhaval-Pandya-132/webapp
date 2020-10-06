@@ -73,15 +73,15 @@ public class Utility {
         HashMap<String, String> response = new HashMap<>();
         if (requestType.equals("GET") || requestType.equals("POST")) {
             response.put("id", um.getId().toString());
-            response.put("firstName", um.getFirstName());
-            response.put("LastName", um.getLastName());
+            response.put("first_name", um.getFirstName());
+            response.put("last_name", um.getLastName());
             response.put("username", um.getUsername());
             response.put("account_created", um.getCreatedDatetime().toString());
             response.put("account_updated", String.valueOf(um.getUpdatedDatetime()));
         } else if (requestType.equals("PUT")) {
 
-            response.put("firstName", um.getFirstName());
-            response.put("LastName", um.getLastName());
+            response.put("first_name", um.getFirstName());
+            response.put("Last_name", um.getLastName());
             response.put("username", um.getUsername());
             response.put("password", um.getPassword());
         }
