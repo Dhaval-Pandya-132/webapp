@@ -9,13 +9,17 @@ import com.csye6225.cloudcomputing.service.AnswerServices;
 import com.csye6225.cloudcomputing.service.CategoryModelServices;
 import com.csye6225.cloudcomputing.service.QuestionServices;
 import com.csye6225.cloudcomputing.service.UserServices;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.json.MappingJacksonValue;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,45 +41,6 @@ public class UserController {
 
     @Autowired
     Utility ut;
-
-    @RequestMapping(value = "v1/user", method = RequestMethod.POST, produces = "application/json")
-    @ResponseBody
-    public ResponseEntity<Map<String, String>> createNewUser(@RequestBody UserModel user) {
-        UserModel um = us.getUserByEmailAddress(user.getUsername());
-        if (user.getUpdatedDatetime() != null || user.getCreatedDatetime() != null) {
-            return new ResponseEntity<>(
-                    Collections.singletonMap("msg", "Invalid request parameters"),
-                    HttpStatus.BAD_REQUEST);
-        }
-        if (!ut.validateEmailAddress(user.getUsername())) {
-            return new ResponseEntity<>(
-                    Collections.singletonMap("msg", "Invalid Email address"),
-                    HttpStatus.BAD_REQUEST);
-        }
-
-        if (um != null) // Check if email address is already exist or not
-        {
-            return new ResponseEntity<>(
-                    Collections.singletonMap("msg", "Email address is already exist"),
-                    HttpStatus.BAD_REQUEST);
-        }
-        if (!ut.checkPasswordStrength(user.getPassword())) {
-            return new ResponseEntity<>(
-                    Collections.singletonMap("msg", "Password length should be greater than 8 character " +
-                            ", and contains at least 1 special character,digit and 1 Upper case character" +
-                            "and it should not contain more than 4 sequences of  2 repeating characters " +
-                            "and should not contain passwords more than 4 occurrences of the same character"),
-                    HttpStatus.BAD_REQUEST);
-        }
-        user.setId(UUID.randomUUID());
-        user.setCreatedDatetime(new Date());
-        user.setUpdatedDatetime(new Date());
-        user.setPassword(ut.BCryptPassword(user.getPassword()));
-        us.save(user);
-        return new ResponseEntity<>(
-                ut.prepareResponse(user, "POST"),
-                HttpStatus.CREATED);
-    }
 
     @RequestMapping(value = "v1/user/self", method = RequestMethod.GET, produces = "application/json")
     public ResponseEntity<Map<String, String>> getUserDetail(@RequestHeader(value = "Authorization") String value) {
@@ -117,7 +82,6 @@ public class UserController {
                 HttpStatus.OK);
     }
 
-
     @RequestMapping(value = "v1/question/", method = RequestMethod.POST, produces = "application/json")
     @ResponseBody
     public ResponseEntity<MappingJacksonValue> addNewQuestion(@RequestBody QuestionModel question
@@ -153,41 +117,6 @@ public class UserController {
 
         MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"QuestionModelFilter"}, question);
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
-    }
-
-    @RequestMapping(value = "v1/question/{questionId}", method = RequestMethod.PUT, produces = "application/json")
-    @ResponseBody
-    public ResponseEntity<String> updateQuestion(@PathVariable UUID questionId
-            , @RequestBody QuestionModel question
-            , @RequestHeader(value = "Authorization") String value) {
-        QuestionModel dbQuestion = qs.findQuestionByQuestionId(questionId);
-
-        if (dbQuestion == null) {
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
-        }
-
-        String[] parseToken = ut.parseAuthorizationToken(value);
-        UserModel um = us.getUserByEmailAddress(parseToken[0]);
-        // authenticate the users
-        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
-                || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
-        ) {
-            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
-        }
-
-        List<CategoryModel> dbCategoryList = cs.getAllCategory();
-        List<CategoryModel> listOfRequestCategories = question.getCategories().stream().distinct().collect(Collectors.toList());
-        List<List<CategoryModel>> output =
-                ut.getFinalandNewCategories(dbCategoryList, listOfRequestCategories);
-
-        dbQuestion.setUpdatedDatetime(new Date());
-        dbQuestion.setCategories(output.get(0));
-        dbQuestion.setQuestionText(question.getQuestionText());
-        dbQuestion.setUserId(um);
-        cs.save(output.get(1));
-        qs.save(dbQuestion);
-        return new ResponseEntity<>( HttpStatus.NO_CONTENT);
-
     }
 
     @RequestMapping(value = "v1/question/{questionId}/answer", method = RequestMethod.POST, produces = "application/json")
@@ -229,26 +158,26 @@ public class UserController {
 
     }
 
+
     @RequestMapping(value = "v1/question/{questionId}/answer/{answerId}", method = RequestMethod.PUT, produces = "application/json")
     @ResponseBody
     public ResponseEntity<String> updateAnswer(@PathVariable UUID questionId
             , @PathVariable UUID answerId
             , @RequestBody AnswerModel answerModel
             , @RequestHeader(value = "Authorization") String value
-    ){
+    ) {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
 
-        AnswerModel am=qs.findAnswerByQuestionAndAnswerId(questionId,answerId);
+        AnswerModel am = qs.findAnswerByQuestionAndAnswerId(questionId, answerId);
 
         if (am == null) {
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
-        if ( ut.validateAuthorization(value, parseToken[0], um.getPassword())
-        || !am.getUserId().getId().toString().equalsIgnoreCase(um.getId().toString())
+        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+                || !am.getUserId().getId().toString().equalsIgnoreCase(um.getId().toString())
 
-        )
-         {
+        ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
         am.setAnswerText(answerModel.getAnswerText());
@@ -263,32 +192,35 @@ public class UserController {
     @ResponseBody
     public ResponseEntity<String> deleteAnswer(@PathVariable UUID questionId
             , @PathVariable UUID answerId
-            ,@RequestHeader(value = "Authorization") String value
-    ){
+            , @RequestHeader(value = "Authorization") String value
+    ) {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
-        AnswerModel am=qs.findAnswerByQuestionAndAnswerId(questionId,answerId);
+        AnswerModel am = qs.findAnswerByQuestionAndAnswerId(questionId, answerId);
 
         if (am == null) {
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
-        if ( ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !am.getUserId().getId().toString().equalsIgnoreCase(um.getId().toString())
 
-        )
-        {
+        ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
         as.deleteAnswer(am.getAnswerId());
         return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
-
-
+    /**
+     * Delete Question by questionId
+     * @param questionId
+     * @param value
+     * @return
+     */
     @RequestMapping(value = "v1/question/{questionId}", method = RequestMethod.DELETE, produces = "application/json")
     @ResponseBody
     public ResponseEntity<String> deleteQuestion(@PathVariable UUID questionId
-            ,  @RequestHeader(value = "Authorization") String value){
+            , @RequestHeader(value = "Authorization") String value) {
 
         QuestionModel dbQuestion = qs.findQuestionByQuestionId(questionId);
 
@@ -304,9 +236,8 @@ public class UserController {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
-        if(dbQuestion.getAnswers().size() > 0)
-        {
-            return new ResponseEntity("One or more answers exists ",HttpStatus.BAD_REQUEST);
+        if (dbQuestion.getAnswers().size() > 0) {
+            return new ResponseEntity("One or more answers exists ", HttpStatus.BAD_REQUEST);
         }
 
 
@@ -315,52 +246,85 @@ public class UserController {
         return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
+    @RequestMapping(value = "v1/question/{questionId}", method = RequestMethod.PUT, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<String> updateQuestion(@PathVariable UUID questionId
+            , @RequestBody QuestionModel question
+            , @RequestHeader(value = "Authorization") String value) {
+        QuestionModel dbQuestion = qs.findQuestionByQuestionId(questionId);
+
+        if (dbQuestion == null) {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
+
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        // authenticate the users
+        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+                || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
+        ) {
+            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+
+        List<CategoryModel> dbCategoryList = cs.getAllCategory();
+        List<CategoryModel> listOfRequestCategories = question.getCategories().stream().distinct().collect(Collectors.toList());
+        List<List<CategoryModel>> output =
+                ut.getFinalandNewCategories(dbCategoryList, listOfRequestCategories);
+
+        dbQuestion.setUpdatedDatetime(new Date());
+        dbQuestion.setCategories(output.get(0));
+        dbQuestion.setQuestionText(question.getQuestionText());
+        dbQuestion.setUserId(um);
+        cs.save(output.get(1));
+        qs.save(dbQuestion);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+
+    }
 
 
     /**
-     * Open APIs
+     * Public APIs
      *
      * @return
      */
 
-    @RequestMapping(value = "v1/questions", method = RequestMethod.GET, produces = "application/json")
+    @RequestMapping(value = "v1/user", method = RequestMethod.POST, produces = "application/json")
     @ResponseBody
-    public ResponseEntity<MappingJacksonValue> getAllQuestions() {
-
-        String[] list = {"question_id"
-                , "created_timestamp"
-                , "updated_timestamp"
-                , "user_id"
-                , "question_text"
-                , "categories"
-                , "answers"
-                , "answer_text"
-                , "answer_id"
-        };
-
-        MappingJacksonValue mapping = ut.getDynamicResponse(list,
-                new String[]{"QuestionModelFilter", "AnswerModelFilter"}, qs.getAllQuestions());
-        return new ResponseEntity<>(mapping, HttpStatus.OK);
-    }
-
-    @RequestMapping(value = "v1/questions/{questionId}", method = RequestMethod.GET, produces = "application/json")
-    @ResponseBody
-    public ResponseEntity<MappingJacksonValue> getQuestionByQuestionID(@PathVariable UUID questionId) {
-        String[] list = {"question_id"
-                , "created_timestamp"
-                , "updated_timestamp"
-                , "user_id"
-                , "question_text", "categories"
-                , "answers"};
-
-        QuestionModel qm = qs.findQuestionByQuestionId(questionId);
-
-        if (qm == null) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    public ResponseEntity<Map<String, String>> createNewUser(@RequestBody UserModel user) {
+        UserModel um = us.getUserByEmailAddress(user.getUsername());
+        if (user.getUpdatedDatetime() != null || user.getCreatedDatetime() != null) {
+            return new ResponseEntity<>(
+                    Collections.singletonMap("msg", "Invalid request parameters"),
+                    HttpStatus.BAD_REQUEST);
+        }
+        if (!ut.validateEmailAddress(user.getUsername())) {
+            return new ResponseEntity<>(
+                    Collections.singletonMap("msg", "Invalid Email address"),
+                    HttpStatus.BAD_REQUEST);
         }
 
-        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"QuestionModelFilter"}, qm);
-        return new ResponseEntity<>(mapping, HttpStatus.OK);
+        if (um != null) // Check if email address is already exist or not
+        {
+            return new ResponseEntity<>(
+                    Collections.singletonMap("msg", "Email address is already exist"),
+                    HttpStatus.BAD_REQUEST);
+        }
+        if (!ut.checkPasswordStrength(user.getPassword())) {
+            return new ResponseEntity<>(
+                    Collections.singletonMap("msg", "Password length should be greater than 8 character " +
+                            ", and contains at least 1 special character,digit and 1 Upper case character" +
+                            "and it should not contain more than 4 sequences of  2 repeating characters " +
+                            "and should not contain passwords more than 4 occurrences of the same character"),
+                    HttpStatus.BAD_REQUEST);
+        }
+        user.setId(UUID.randomUUID());
+        user.setCreatedDatetime(new Date());
+        user.setUpdatedDatetime(new Date());
+        user.setPassword(ut.BCryptPassword(user.getPassword()));
+        us.save(user);
+        return new ResponseEntity<>(
+                ut.prepareResponse(user, "POST"),
+                HttpStatus.CREATED);
     }
 
     @RequestMapping(value = "v1/user/{id}", method = RequestMethod.GET, produces = "application/json")
@@ -403,10 +367,50 @@ public class UserController {
         return new ResponseEntity<>(mapping, HttpStatus.OK);
     }
 
+    @RequestMapping(value = "v1/questions", method = RequestMethod.GET, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> getAllQuestions() {
 
-    //    @exception handling
-//    @ExceptionHandler({NullPointerException.class, IllegalArgumentException.class, JsonProcessingException.class, JsonParseException.class})
-//    void handleRuntimeException(NullPointerException e, HttpServletResponse response) throws IOException {
-//        response.sendError(HttpStatus.BAD_REQUEST.value());
-//    }
+        String[] list = {"question_id"
+                , "created_timestamp"
+                , "updated_timestamp"
+                , "user_id"
+                , "question_text"
+                , "categories"
+                , "answers"
+                , "answer_text"
+                , "answer_id"
+        };
+
+        MappingJacksonValue mapping = ut.getDynamicResponse(list,
+                new String[]{"QuestionModelFilter", "AnswerModelFilter"}, qs.getAllQuestions());
+        return new ResponseEntity<>(mapping, HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "v1/question/{questionId}", method = RequestMethod.GET, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> getQuestionByQuestionID(@PathVariable UUID questionId) {
+        String[] list = {"question_id"
+                , "created_timestamp"
+                , "updated_timestamp"
+                , "user_id"
+                , "question_text", "categories"
+                , "answers"};
+
+        QuestionModel qm = qs.findQuestionByQuestionId(questionId);
+
+        if (qm == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+
+        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"QuestionModelFilter"}, qm);
+        return new ResponseEntity<>(mapping, HttpStatus.OK);
+    }
+
+
+    // @exception handling
+    @ExceptionHandler({NullPointerException.class, IllegalArgumentException.class, JsonProcessingException.class, JsonParseException.class})
+    void handleRuntimeException(NullPointerException e, HttpServletResponse response) throws IOException {
+        response.sendError(HttpStatus.BAD_REQUEST.value());
+    }
 }
