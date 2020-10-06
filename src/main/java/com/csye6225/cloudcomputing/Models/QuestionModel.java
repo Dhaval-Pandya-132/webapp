@@ -1,59 +1,87 @@
 package com.csye6225.cloudcomputing.Models;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.*;
 import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import javax.persistence.*;
 import java.io.Serializable;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
+@JsonFilter("QuestionModelFilter")
+@JsonPropertyOrder({"question_id"
+        , "created_timestamp"
+        , "updated_timestamp"
+        , "user_id"
+        , "question_text"
+        , "categories"
+        , "answers"})
 public class QuestionModel implements Serializable {
 
     @Id
-    @Column(columnDefinition = "BINARY(16)" )
+    @Column(columnDefinition = "BINARY(16)")
     private UUID questionId = UUID.randomUUID();
     private Date createdDatetime;
     private Date updatedDatetime;
     private String questionText;
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-//    @OnDelete(action = OnDeleteAction.CASCADE)
-    @JsonIgnore
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "userId", nullable = false)
     private UserModel userId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "categoryId", nullable = false)
-    @JsonIgnore
-    private CategoryModel categoryId;
+    @ManyToMany
+    private List<CategoryModel> categories = new ArrayList<>();
 
 
-    public QuestionModel(){
+    @OneToMany(orphanRemoval = true, cascade = CascadeType.REMOVE,
+            fetch = FetchType.LAZY,
+            mappedBy = "questionId")
+    private List<AnswerModel> answers = new ArrayList<>();
 
+
+    public QuestionModel() {
     }
 
-
-    public QuestionModel(UUID questionId, Date createdDatetime, Date updatedDatetime, String questionText, UserModel userId, CategoryModel categoryId) {
+    public QuestionModel(UUID questionId, Date createdDatetime, Date updatedDatetime, String questionText, UserModel userId) {
         this.createdDatetime = createdDatetime;
         this.updatedDatetime = updatedDatetime;
         this.questionText = questionText;
         this.userId = userId;
-        this.categoryId = categoryId;
-        this.questionId= questionId;
+        //  this.categoryId = categoryId;
+        this.questionId = questionId;
     }
 
-    public CategoryModel getCategoryId() {
-        return categoryId;
+
+    /*--- Getter and Setters ----*/
+
+    @JsonGetter("categories")
+    public List<CategoryModel> getCategories() {
+        return categories;
     }
 
-    public void setCategoryId(CategoryModel categoryId) {
-        this.categoryId = categoryId;
+
+    public void setCategories(List<CategoryModel> categories) {
+        this.categories = categories;
     }
 
+    public List<AnswerModel> getAnswers() {
+        return answers;
+    }
+
+    @JsonGetter("answers")
+    public void setAnswers(List<AnswerModel> answers) {
+        this.answers = answers;
+    }
+
+
+    @JsonGetter("user_id")
+    public String getUserID() {
+        return this.userId.getId().toString();
+    }
+
+    @JsonGetter("question_id")
     public UUID getQuestionId() {
         return questionId;
     }
@@ -62,6 +90,7 @@ public class QuestionModel implements Serializable {
         this.questionId = questionId;
     }
 
+    @JsonGetter("created_timestamp")
     public Date getCreatedDatetime() {
         return createdDatetime;
     }
@@ -70,6 +99,7 @@ public class QuestionModel implements Serializable {
         this.createdDatetime = createdDatetime;
     }
 
+    @JsonGetter("updated_timestamp")
     public Date getUpdatedDatetime() {
         return updatedDatetime;
     }
@@ -78,6 +108,7 @@ public class QuestionModel implements Serializable {
         this.updatedDatetime = updatedDatetime;
     }
 
+    @JsonGetter("question_text")
     public String getQuestionText() {
         return questionText;
     }

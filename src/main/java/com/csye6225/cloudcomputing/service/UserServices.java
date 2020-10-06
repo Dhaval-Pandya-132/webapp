@@ -24,8 +24,9 @@ public class UserServices {
         repo.save(um);
         return um;
     }
-    public UserModel get(UUID id) {
-        return repo.findById(id).get();
+
+    public UserModel getById(UUID id) {
+        return repo.getFirstById(id);
     }
 
     public UserModel getUserByEmailAddress(String username) {

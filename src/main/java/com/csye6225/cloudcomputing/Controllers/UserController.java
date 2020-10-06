@@ -1,25 +1,23 @@
 package com.csye6225.cloudcomputing.Controllers;
 
 import com.csye6225.cloudcomputing.Models.AnswerModel;
+import com.csye6225.cloudcomputing.Models.CategoryModel;
 import com.csye6225.cloudcomputing.Models.QuestionModel;
-import com.csye6225.cloudcomputing.Models.QuestionModelWrapper;
 import com.csye6225.cloudcomputing.Models.UserModel;
 import com.csye6225.cloudcomputing.Utils.Utility;
+import com.csye6225.cloudcomputing.service.AnswerServices;
 import com.csye6225.cloudcomputing.service.CategoryModelServices;
 import com.csye6225.cloudcomputing.service.QuestionServices;
 import com.csye6225.cloudcomputing.service.UserServices;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.json.MappingJacksonValue;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 public class UserController {
@@ -32,6 +30,10 @@ public class UserController {
 
     @Autowired
     CategoryModelServices cs;
+
+    @Autowired
+    AnswerServices as;
+
 
     @Autowired
     Utility ut;
@@ -65,6 +67,7 @@ public class UserController {
                             "and should not contain passwords more than 4 occurrences of the same character"),
                     HttpStatus.BAD_REQUEST);
         }
+        user.setId(UUID.randomUUID());
         user.setCreatedDatetime(new Date());
         user.setUpdatedDatetime(new Date());
         user.setPassword(ut.BCryptPassword(user.getPassword()));
@@ -115,92 +118,289 @@ public class UserController {
     }
 
 
-    @RequestMapping(value = "v1/question", method = RequestMethod.POST, produces = "application/json")
+    @RequestMapping(value = "v1/question/", method = RequestMethod.POST, produces = "application/json")
     @ResponseBody
-    public ResponseEntity<QuestionModel> createQuestion(@RequestBody QuestionModelWrapper Question, @RequestHeader(value = "Authorization") String value) {
+    public ResponseEntity<MappingJacksonValue> addNewQuestion(@RequestBody QuestionModel question
+            , @RequestHeader(value = "Authorization") String value) {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        // authenticate the users
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
-        QuestionModel qm = new QuestionModel();
-        qm.setQuestionId(UUID.randomUUID());
-        qm.setCreatedDatetime(new Date());
-        qm.setUpdatedDatetime(new Date());
-        qm.setUserId(um);
-        qm.setCategoryId(Question.getCategories().get(0));
-        qm.setQuestionText(Question.getQuestionText());
 
-        if (cs.getCategoryByName(Question.getCategories().get(0).getCategory()) == null) // check category is already exist or not
-        {
-            cs.save(Question.getCategories().get(0));
-        }
-        QuestionModel qmOut = qs.save(qm);
+        List<CategoryModel> dbCategoryList = cs.getAllCategory();
+        List<CategoryModel> listOfRequestCategories = question.getCategories().stream().distinct().collect(Collectors.toList());
 
+        List<List<CategoryModel>> output =
+                ut.getFinalandNewCategories(dbCategoryList, listOfRequestCategories);
 
-        return new ResponseEntity<>(
-                qmOut,
-                HttpStatus.CREATED);
+        question.setCreatedDatetime(new Date());
+        question.setUpdatedDatetime(new Date());
+        question.setUserId(um);
+        question.setCategories(output.get(0));
+        cs.save(output.get(1));
+        qs.save(question);
+
+        String[] list = {"question_id"
+                , "created_timestamp"
+                , "updated_timestamp"
+                , "user_id"
+                , "question_text"
+                , "categories"
+                , "answers"};
+
+        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"QuestionModelFilter"}, question);
+        return new ResponseEntity<>(mapping, HttpStatus.CREATED);
     }
-
 
     @RequestMapping(value = "v1/question/{questionId}", method = RequestMethod.PUT, produces = "application/json")
     @ResponseBody
-    public ResponseEntity<QuestionModelWrapper> updateQuestion(@PathVariable UUID questionId
-            , @RequestBody QuestionModelWrapper Question
+    public ResponseEntity<String> updateQuestion(@PathVariable UUID questionId
+            , @RequestBody QuestionModel question
             , @RequestHeader(value = "Authorization") String value) {
+        QuestionModel dbQuestion = qs.findQuestionByQuestionId(questionId);
+
+        if (dbQuestion == null) {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
+
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
-        System.out.println("param " + questionId);
-        QuestionModelWrapper qmw = qs.findQuestionByQuestionId(questionId);
-
-        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
-                || !qmw.getUserId().getId().equals(um.getId())
+        // authenticate the users
+        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+                || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
-        if (cs.getCategoryByName(Question.getCategories().get(0).getCategory()) == null) // check category is already exist or not
-        {
-            cs.save(Question.getCategories().get(0));
-        }
-        qmw.setUpdatedDatetime(new Date());
-        qmw.setQuestionText(Question.getQuestionText());
-        qmw.setCategories(Question.getCategories());
-        qs.save(qmw);
-//        QuestionModel qm = new QuestionModel(new Date(),new Date(), Question.getQuestionText(),um, Question.getCategories().get(0));
-//        if (cs.getCategoryByName(Question.getCategories().get(0).getCategory()) == null) // check category is already exist or not
-//        {
-//            cs.save(Question.getCategories().get(0));
-//        }
-//        QuestionModelWrapper qmw= qs.save(qm);
 
-        return new ResponseEntity<>(
-                qmw,
-                HttpStatus.CREATED);
+        List<CategoryModel> dbCategoryList = cs.getAllCategory();
+        List<CategoryModel> listOfRequestCategories = question.getCategories().stream().distinct().collect(Collectors.toList());
+        List<List<CategoryModel>> output =
+                ut.getFinalandNewCategories(dbCategoryList, listOfRequestCategories);
+
+        dbQuestion.setUpdatedDatetime(new Date());
+        dbQuestion.setCategories(output.get(0));
+        dbQuestion.setQuestionText(question.getQuestionText());
+        dbQuestion.setUserId(um);
+        cs.save(output.get(1));
+        qs.save(dbQuestion);
+        return new ResponseEntity<>( HttpStatus.NO_CONTENT);
+
     }
 
-    @RequestMapping(value = "v1/question/{questionId}", method = RequestMethod.POST, produces = "application/json")
+    @RequestMapping(value = "v1/question/{questionId}/answer", method = RequestMethod.POST, produces = "application/json")
     @ResponseBody
-    public ResponseEntity<AnswerModel> saveAnswer(@PathVariable UUID questionId
+    public ResponseEntity<MappingJacksonValue> saveAnswer(@PathVariable UUID questionId
             , @RequestBody AnswerModel am
             , @RequestHeader(value = "Authorization") String value) {
+
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
-        QuestionModelWrapper qmw = qs.findQuestionByQuestionId(questionId);
+        QuestionModel qmw = qs.findQuestionByQuestionId(questionId);
+
+        if (qmw == null) {
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
 
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
+        String[] list = {"answer_id"
+                , "question_id"
+                , "created_timestamp"
+                , "updated_timestamp"
+                , "user_id"
+                , "answer_text"};
+
         AnswerModel amOut = new AnswerModel();
         amOut.setAnswerText(am.getAnswerText());
         amOut.setUserId(um);
-        // amOut.setQuestionId();
+        amOut.setQuestionId(qmw);
+        amOut.setCreatedTimestamp(new Date());
+        amOut.setUpdatedTimestamp(new Date());
+        AnswerModel answerModel = as.saveAnswer(amOut);
 
-        return new ResponseEntity<>(
-                am,
-                HttpStatus.CREATED);
+        MappingJacksonValue mapping = ut.getDynamicResponse(list,
+                new String[]{"AnswerModelFilter"}, answerModel);
+        return new ResponseEntity<>(mapping, HttpStatus.CREATED);
+
+    }
+
+    @RequestMapping(value = "v1/question/{questionId}/answer/{answerId}", method = RequestMethod.PUT, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<String> updateAnswer(@PathVariable UUID questionId
+            , @PathVariable UUID answerId
+            , @RequestBody AnswerModel answerModel
+            , @RequestHeader(value = "Authorization") String value
+    ){
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+
+        AnswerModel am=qs.findAnswerByQuestionAndAnswerId(questionId,answerId);
+
+        if (am == null) {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
+        if ( ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        || !am.getUserId().getId().toString().equalsIgnoreCase(um.getId().toString())
+
+        )
+         {
+            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+        am.setAnswerText(answerModel.getAnswerText());
+        am.setUpdatedTimestamp(new Date());
+        as.saveAnswer(am);
+
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
+
+    }
+
+    @RequestMapping(value = "v1/question/{questionId}/answer/{answerId}", method = RequestMethod.DELETE, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<String> deleteAnswer(@PathVariable UUID questionId
+            , @PathVariable UUID answerId
+            ,@RequestHeader(value = "Authorization") String value
+    ){
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        AnswerModel am=qs.findAnswerByQuestionAndAnswerId(questionId,answerId);
+
+        if (am == null) {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
+        if ( ut.validateAuthorization(value, parseToken[0], um.getPassword())
+                || !am.getUserId().getId().toString().equalsIgnoreCase(um.getId().toString())
+
+        )
+        {
+            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+        as.deleteAnswer(am.getAnswerId());
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
+    }
+
+
+
+    @RequestMapping(value = "v1/question/{questionId}", method = RequestMethod.DELETE, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<String> deleteQuestion(@PathVariable UUID questionId
+            ,  @RequestHeader(value = "Authorization") String value){
+
+        QuestionModel dbQuestion = qs.findQuestionByQuestionId(questionId);
+
+        if (dbQuestion == null) {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        // authenticate the users
+        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+                || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
+        ) {
+            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+
+        if(dbQuestion.getAnswers().size() > 0)
+        {
+            return new ResponseEntity("One or more answers exists ",HttpStatus.BAD_REQUEST);
+        }
+
+
+        qs.deleteQuestion(dbQuestion);
+
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
+    }
+
+
+
+    /**
+     * Open APIs
+     *
+     * @return
+     */
+
+    @RequestMapping(value = "v1/questions", method = RequestMethod.GET, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> getAllQuestions() {
+
+        String[] list = {"question_id"
+                , "created_timestamp"
+                , "updated_timestamp"
+                , "user_id"
+                , "question_text"
+                , "categories"
+                , "answers"
+                , "answer_text"
+                , "answer_id"
+        };
+
+        MappingJacksonValue mapping = ut.getDynamicResponse(list,
+                new String[]{"QuestionModelFilter", "AnswerModelFilter"}, qs.getAllQuestions());
+        return new ResponseEntity<>(mapping, HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "v1/questions/{questionId}", method = RequestMethod.GET, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> getQuestionByQuestionID(@PathVariable UUID questionId) {
+        String[] list = {"question_id"
+                , "created_timestamp"
+                , "updated_timestamp"
+                , "user_id"
+                , "question_text", "categories"
+                , "answers"};
+
+        QuestionModel qm = qs.findQuestionByQuestionId(questionId);
+
+        if (qm == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+
+        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"QuestionModelFilter"}, qm);
+        return new ResponseEntity<>(mapping, HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "v1/user/{id}", method = RequestMethod.GET, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> getUserByID(@PathVariable UUID id) {
+        String[] list = {"id"
+                , "first_name"
+                , "last_name"
+                , "username"
+                , "account_created", "account_updated"
+        };
+
+        UserModel um = us.getById(id);
+        if (um == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"UserModelFilter"}, um);
+        return new ResponseEntity<>(mapping, HttpStatus.OK);
+
+    }
+
+    @RequestMapping(value = "v1/question/{question_id}/answer/{answer_id}", method = RequestMethod.GET, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> getAnswerByID(@PathVariable UUID question_id, @PathVariable UUID answer_id) {
+        AnswerModel am = qs.findAnswerByQuestionAndAnswerId(question_id, answer_id);
+        if (am == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+
+        String[] list = {"question_id"
+                , "created_timestamp"
+                , "updated_timestamp"
+                , "user_id"
+                , "question_text", "categories"
+                , "answers"
+                , "answer_text"
+                , "answer_id"};
+
+        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"AnswerModelFilter"}, am);
+        return new ResponseEntity<>(mapping, HttpStatus.OK);
     }
 
 

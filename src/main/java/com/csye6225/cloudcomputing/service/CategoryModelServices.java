@@ -9,6 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Set;
+
 @Service
 @Transactional
 public class CategoryModelServices {
@@ -17,15 +20,15 @@ public class CategoryModelServices {
     @Autowired
     private CategoryRepository repo;
 
-    public CategoryModel save(CategoryModel um) {
-        repo.save(um);
-        return um;
+    public void save(List<CategoryModel> um) {
+        repo.saveAll(um);
+//        return um;
     }
 
-    public CategoryModel getCategoryByName(String categoryName)
-    {
-       return repo.findFirstByCategory(categoryName);
+    public List<CategoryModel> getAllCategory(){
+        return repo.findAll();
     }
+
 
 
 }

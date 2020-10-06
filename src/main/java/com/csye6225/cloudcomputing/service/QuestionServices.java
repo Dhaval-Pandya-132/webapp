@@ -2,16 +2,15 @@ package com.csye6225.cloudcomputing.service;
 
 
 import com.csye6225.cloudcomputing.DataRepository.QuestionRepository;
-import com.csye6225.cloudcomputing.DataRepository.UserRepository;
+import com.csye6225.cloudcomputing.Models.AnswerModel;
 import com.csye6225.cloudcomputing.Models.QuestionModel;
-import com.csye6225.cloudcomputing.Models.QuestionModelWrapper;
-import com.csye6225.cloudcomputing.Models.UserModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -21,30 +20,34 @@ public class QuestionServices {
     private QuestionRepository repo;
 
     public QuestionModel save(QuestionModel um) {
-        QuestionModelWrapper qwm = new QuestionModelWrapper(um);
-//        qwm.getCategories().add(um.getCategoryId());
-//        qwm.setQuestionId(um.getQuestionId());
-     //  repo.findAll();
         repo.save(um);
         return um;
     }
 
-    public QuestionModelWrapper findQuestionByQuestionId(UUID questionId) {
-      //  QuestionModelWrapper qwm = null;
-//        List<QuestionModel> qmList = repo.findAll();
-//        for (QuestionModel qm:
-//             qmList) {
-//            if(qm.getQuestionId().equals(questionId))
-//            {
-//                System.out.println(qm.getQuestionId());
-//             qwm = new QuestionModelWrapper(qm);
-//             return qwm;
-//            }
-//
-//        }
-
-        return new QuestionModelWrapper(repo.findFirstByQuestionId(questionId));
+    public QuestionModel findQuestionByQuestionId(UUID questionId) {
+        return repo.findFirstByQuestionId(questionId);
     }
 
+    public List<QuestionModel> getAllQuestions() {
+        return repo.findAll();
+    }
+
+    public AnswerModel findAnswerByQuestionAndAnswerId(UUID questionId,
+                                                       UUID answerId) {
+        QuestionModel qm = findQuestionByQuestionId(questionId);
+        if (qm != null) {
+            List<AnswerModel> am = qm.getAnswers().stream().filter(answer ->
+                    answer.getAnswerId().toString().equalsIgnoreCase(answerId.toString())
+            ).collect(Collectors.toList());
+            return am.get(0);
+        }
+
+        return null;
+    }
+
+
+    public void deleteQuestion(QuestionModel questionModel) {
+        repo.delete(questionModel);
+    }
 
 }
