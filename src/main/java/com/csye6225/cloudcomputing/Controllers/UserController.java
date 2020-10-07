@@ -409,7 +409,11 @@ public class UserController {
 
 
     // @exception handling
-    @ExceptionHandler({NullPointerException.class, IllegalArgumentException.class, JsonProcessingException.class, JsonParseException.class})
+    @ExceptionHandler({NullPointerException.class
+            , IllegalArgumentException.class, JsonProcessingException.class
+            , JsonParseException.class
+            ,IndexOutOfBoundsException.class
+    })
     void handleRuntimeException(NullPointerException e, HttpServletResponse response) throws IOException {
         response.sendError(HttpStatus.BAD_REQUEST.value());
     }

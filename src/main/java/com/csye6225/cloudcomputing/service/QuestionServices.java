@@ -39,7 +39,10 @@ public class QuestionServices {
             List<AnswerModel> am = qm.getAnswers().stream().filter(answer ->
                     answer.getAnswerId().toString().equalsIgnoreCase(answerId.toString())
             ).collect(Collectors.toList());
-            return am.get(0);
+            if(am.size() >= 1 ){
+                return am.get(0);
+            }
+
         }
 
         return null;
