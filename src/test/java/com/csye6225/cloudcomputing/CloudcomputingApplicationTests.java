@@ -67,28 +67,28 @@ class CloudcomputingApplicationTests {
 
     }
 
-//    @Test
-//    public void createNewUserTest() {
-//
-//        // verifying different user creation with all validation process
-//        Map<UserModel, Integer> mockUserListandStatus = new HashMap<>();
-//        mockUserListandStatus.put(new UserModel("test@test.com", "testPassword!12"
-//                , "firstName", "Lastname",  null, null), HttpStatus.CREATED.value());
-//        // email invalid
-//        mockUserListandStatus.put(new UserModel("test.com", "testPassword!12"
-//                , "firstName", "Lastname", null, null), HttpStatus.BAD_REQUEST.value());
-//        // invalid password
-//        mockUserListandStatus.put(new UserModel("test@test2.com", "testPassword!"
-//                , "firstName", "Lastname", null, null), HttpStatus.BAD_REQUEST.value());
-//
-//// check for different status code.
-//        for (Map.Entry mapElement :
-//                mockUserListandStatus.entrySet()) {
-//            ResponseEntity<String> re = restTemplate.postForEntity(getRootUrl() + "/v1/user", mapElement.getKey(), String.class);
-//            assertNotNull(re);
-//            assertNotNull(re.getBody());
-//
-//        }
-//
-//    }
+    @Test
+    public void createNewUserTest() {
+
+        // verifying different user creation with all validation process
+        Map<UserModel, Integer> mockUserListandStatus = new HashMap<>();
+        mockUserListandStatus.put(new UserModel("test@test.com", "testPassword!12"
+                , "firstName", "Lastname",  null, null), HttpStatus.CREATED.value());
+        // email invalid
+        mockUserListandStatus.put(new UserModel("test.com", "testPassword!12"
+                , "firstName", "Lastname", null, null), HttpStatus.BAD_REQUEST.value());
+        // invalid password
+        mockUserListandStatus.put(new UserModel("test@test2.com", "testPassword!"
+                , "firstName", "Lastname", null, null), HttpStatus.BAD_REQUEST.value());
+
+// check for different status code.
+        for (Map.Entry mapElement :
+                mockUserListandStatus.entrySet()) {
+            ResponseEntity<String> re = restTemplate.postForEntity(getRootUrl() + "/v1/user", mapElement.getKey(), String.class);
+            assertNotNull(re);
+            assertNotNull(re.getBody());
+
+        }
+
+    }
 }
