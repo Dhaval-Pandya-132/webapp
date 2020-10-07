@@ -1,10 +1,19 @@
 package com.csye6225.cloudcomputing;
+import com.csye6225.cloudcomputing.DataRepository.AnswerRepository;
+import com.csye6225.cloudcomputing.DataRepository.CategoryRepository;
+import com.csye6225.cloudcomputing.DataRepository.QuestionRepository;
 import com.csye6225.cloudcomputing.DataRepository.UserRepository;
+import com.csye6225.cloudcomputing.Models.CategoryModel;
 import com.csye6225.cloudcomputing.Models.UserModel;
+import com.csye6225.cloudcomputing.service.AnswerServices;
+import com.csye6225.cloudcomputing.service.CategoryModelServices;
+import com.csye6225.cloudcomputing.service.QuestionServices;
 import com.csye6225.cloudcomputing.service.UserServices;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -25,9 +34,23 @@ class CloudcomputingApplicationTests {
 
     @MockBean
     UserRepository ur;
-
     @MockBean
     UserServices us;
+
+    @MockBean
+    QuestionServices qs;
+    @MockBean
+    QuestionRepository qr;
+
+    @MockBean
+    CategoryModelServices cs;
+    @MockBean
+    CategoryRepository cr;
+
+    @MockBean
+    AnswerServices ans;
+    @MockBean
+    AnswerRepository anr;
 
     @Autowired
     ObjectMapper objectMapper;
