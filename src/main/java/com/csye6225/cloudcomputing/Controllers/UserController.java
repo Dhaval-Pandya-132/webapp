@@ -94,6 +94,12 @@ public class UserController {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
+        if(question.getQuestionText() == null
+                || question.getQuestionText().equalsIgnoreCase("")){
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
+
+
         List<CategoryModel> dbCategoryList = cs.getAllCategory();
         List<CategoryModel> listOfRequestCategories = question.getCategories().stream().distinct().collect(Collectors.toList());
 
@@ -137,6 +143,11 @@ public class UserController {
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
+        if(am == null ||
+                am.getAnswerText().equalsIgnoreCase("")){
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
+
         String[] list = {"answer_id"
                 , "question_id"
                 , "created_timestamp"
@@ -180,6 +191,12 @@ public class UserController {
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
+
+        if(answerModel == null ||
+                answerModel.getAnswerText().equalsIgnoreCase("")){
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
+
         am.setAnswerText(answerModel.getAnswerText());
         am.setUpdatedTimestamp(new Date());
         as.saveAnswer(am);
@@ -264,6 +281,11 @@ public class UserController {
                 || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+
+        if(question.getQuestionText() == null
+                || question.getQuestionText().equalsIgnoreCase("")){
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
         List<CategoryModel> dbCategoryList = cs.getAllCategory();
