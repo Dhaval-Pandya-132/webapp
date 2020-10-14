@@ -12,10 +12,14 @@
     <artifactId>cloudcomputing</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>cloudcomputing</name>
+    <packaging>war</packaging>
     <description>Spring project for cloud computing</description>
 
     <properties>
         <java.version>1.8</java.version>
+        <start-class>
+            com.csye6225.cloudcomputing.CloudcomputingApplication
+        </start-class>
     </properties>
 
     <dependencies>
@@ -78,7 +82,11 @@
             <version>1.6.0</version>
         </dependency>
 
-
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
 
     </dependencies>
 
