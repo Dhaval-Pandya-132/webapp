@@ -9,7 +9,9 @@ import org.hibernate.annotations.GenericGenerator;
 
 import javax.persistence.*;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -20,6 +22,7 @@ import java.util.UUID;
         , "updated_timestamp"
         , "user_id"
         , "answer_text"
+        , "attachments"
 })
 public class AnswerModel implements Serializable {
 
@@ -38,8 +41,21 @@ public class AnswerModel implements Serializable {
     @JoinColumn(name = "userId", nullable = false)
     private UserModel userId;
 
+    @OneToMany(orphanRemoval = true, cascade = CascadeType.REMOVE,
+            fetch = FetchType.LAZY,
+            mappedBy = "answerId")
+    private List<FileModel> attachments = new ArrayList<>();
 
     public AnswerModel() {
+    }
+
+    public List<FileModel> getAttachments() {
+        return attachments;
+    }
+
+    @JsonGetter("attachments")
+    public void setAttachments(List<FileModel> attachments) {
+        this.attachments = attachments;
     }
 
     @JsonGetter("user_id")
