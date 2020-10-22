@@ -1,9 +1,6 @@
 package com.csye6225.cloudcomputing.Models;
 
 import com.fasterxml.jackson.annotation.*;
-import org.hibernate.annotations.GenericGenerator;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 import javax.persistence.*;
 import java.io.Serializable;
@@ -17,7 +14,9 @@ import java.util.*;
         , "user_id"
         , "question_text"
         , "categories"
-        , "answers"})
+        , "answers"
+        , "attachments"
+})
 public class QuestionModel implements Serializable {
 
     @Id
@@ -39,6 +38,12 @@ public class QuestionModel implements Serializable {
             fetch = FetchType.LAZY,
             mappedBy = "questionId")
     private List<AnswerModel> answers = new ArrayList<>();
+
+
+    @OneToMany(orphanRemoval = true, cascade = CascadeType.REMOVE,
+            fetch = FetchType.LAZY,
+            mappedBy = "questionId")
+    private List<FileModel> attachments = new ArrayList<>();
 
 
     public QuestionModel() {
@@ -123,6 +128,15 @@ public class QuestionModel implements Serializable {
 
     public void setUserId(UserModel userId) {
         this.userId = userId;
+    }
+
+    @JsonGetter("attachments")
+    public List<FileModel> getAttachments() {
+        return attachments;
+    }
+
+    public void setAttachments(List<FileModel> attachments) {
+        this.attachments = attachments;
     }
 
 }

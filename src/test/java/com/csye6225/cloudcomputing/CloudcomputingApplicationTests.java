@@ -1,14 +1,9 @@
 package com.csye6225.cloudcomputing;
-import com.csye6225.cloudcomputing.DataRepository.AnswerRepository;
-import com.csye6225.cloudcomputing.DataRepository.CategoryRepository;
-import com.csye6225.cloudcomputing.DataRepository.QuestionRepository;
-import com.csye6225.cloudcomputing.DataRepository.UserRepository;
+import com.csye6225.cloudcomputing.DataRepository.*;
 import com.csye6225.cloudcomputing.Models.CategoryModel;
+import com.csye6225.cloudcomputing.Models.FileModel;
 import com.csye6225.cloudcomputing.Models.UserModel;
-import com.csye6225.cloudcomputing.service.AnswerServices;
-import com.csye6225.cloudcomputing.service.CategoryModelServices;
-import com.csye6225.cloudcomputing.service.QuestionServices;
-import com.csye6225.cloudcomputing.service.UserServices;
+import com.csye6225.cloudcomputing.service.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +46,14 @@ class CloudcomputingApplicationTests {
     AnswerServices ans;
     @MockBean
     AnswerRepository anr;
+
+    @MockBean
+    FileService fs;
+    @MockBean
+    FileRepository fr;
+
+    @MockBean
+    S3StorageService ss;
 
     @Autowired
     ObjectMapper objectMapper;

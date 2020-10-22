@@ -1,25 +1,26 @@
 package com.csye6225.cloudcomputing.Controllers;
 
-import com.csye6225.cloudcomputing.Models.AnswerModel;
-import com.csye6225.cloudcomputing.Models.CategoryModel;
-import com.csye6225.cloudcomputing.Models.QuestionModel;
-import com.csye6225.cloudcomputing.Models.UserModel;
+import com.amazonaws.services.s3.model.PutObjectResult;
+import com.csye6225.cloudcomputing.Models.*;
 import com.csye6225.cloudcomputing.Utils.Utility;
-import com.csye6225.cloudcomputing.service.AnswerServices;
-import com.csye6225.cloudcomputing.service.CategoryModelServices;
-import com.csye6225.cloudcomputing.service.QuestionServices;
-import com.csye6225.cloudcomputing.service.UserServices;
+import com.csye6225.cloudcomputing.service.*;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.json.MappingJacksonValue;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -38,9 +39,22 @@ public class UserController {
     @Autowired
     AnswerServices as;
 
+    @Autowired
+    FileService fs;
+    @Autowired
+    FileUploadService fileService;
 
     @Autowired
     Utility ut;
+
+
+    private S3StorageService storageService;
+
+    @Autowired
+    public UserController(S3StorageService storageService) {
+        this.storageService = storageService;
+    }
+
 
     @RequestMapping(value = "v1/user/self", method = RequestMethod.GET, produces = "application/json")
     public ResponseEntity<Map<String, String>> getUserDetail(@RequestHeader(value = "Authorization") String value) {
@@ -94,8 +108,8 @@ public class UserController {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
-        if(question.getQuestionText() == null
-                || question.getQuestionText().equalsIgnoreCase("")){
+        if (question.getQuestionText() == null
+                || question.getQuestionText().equalsIgnoreCase("")) {
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
@@ -119,9 +133,18 @@ public class UserController {
                 , "user_id"
                 , "question_text"
                 , "categories"
-                , "answers"};
+                , "answers"
+                , "attachments"
+                , "file_name"
+                , "s3_object_name"
+                , "file_id"
+                , "created_date"
+                , "bucket_name"
+                , "sse_algorithm"
+        };
 
-        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"QuestionModelFilter"}, question);
+        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"QuestionModelFilter", "FileModelFilter"}
+                , question);
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
     }
 
@@ -143,8 +166,8 @@ public class UserController {
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
-        if(am == null ||
-                am.getAnswerText().equalsIgnoreCase("")){
+        if (am == null ||
+                am.getAnswerText().equalsIgnoreCase("")) {
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
@@ -153,7 +176,16 @@ public class UserController {
                 , "created_timestamp"
                 , "updated_timestamp"
                 , "user_id"
-                , "answer_text"};
+                , "answer_text"
+                , "attachments"
+                , "file_name"
+                , "s3_object_name"
+                , "file_id"
+                , "created_date"
+                , "bucket_name"
+                , "sse_algorithm"
+
+        };
 
         AnswerModel amOut = new AnswerModel();
         amOut.setAnswerText(am.getAnswerText());
@@ -164,7 +196,7 @@ public class UserController {
         AnswerModel answerModel = as.saveAnswer(amOut);
 
         MappingJacksonValue mapping = ut.getDynamicResponse(list,
-                new String[]{"AnswerModelFilter"}, answerModel);
+                new String[]{"AnswerModelFilter", "FileModelFilter"}, answerModel);
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
 
     }
@@ -192,8 +224,8 @@ public class UserController {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
-        if(answerModel == null ||
-                answerModel.getAnswerText().equalsIgnoreCase("")){
+        if (answerModel == null ||
+                answerModel.getAnswerText().equalsIgnoreCase("")) {
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
@@ -224,12 +256,22 @@ public class UserController {
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
+
+        List<FileModel> fm = fs.getFilesByQuestionIDAndAnswerId(questionId ,answerId);
+        for (FileModel file:
+                fm) {
+            storageService.deleteFile(file.getS3ObjectKey());
+        }
+
+
+
         as.deleteAnswer(am.getAnswerId());
         return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
     /**
      * Delete Question by questionId
+     *
      * @param questionId
      * @param value
      * @return
@@ -257,6 +299,13 @@ public class UserController {
             return new ResponseEntity("One or more answers exists ", HttpStatus.BAD_REQUEST);
         }
 
+        List<FileModel> fm = fs.getFilesByQuestionID(dbQuestion.getQuestionId());
+        for (FileModel file:
+             fm) {
+            storageService.deleteFile(file.getS3ObjectKey());
+        }
+
+
 
         qs.deleteQuestion(dbQuestion);
 
@@ -283,8 +332,8 @@ public class UserController {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
-        if(question.getQuestionText() == null
-                || question.getQuestionText().equalsIgnoreCase("")){
+        if (question.getQuestionText() == null
+                || question.getQuestionText().equalsIgnoreCase("")) {
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
@@ -300,6 +349,170 @@ public class UserController {
         cs.save(output.get(1));
         qs.save(dbQuestion);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+
+    }
+
+
+    @RequestMapping(value = "v1/question/{question_id}/file", method = RequestMethod.POST, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> uploadQuestionFile(@PathVariable UUID question_id
+            , @RequestPart(value = "file") MultipartFile multiPartFile
+            , @RequestHeader(value = "Authorization") String value
+    ) throws IOException {
+
+        QuestionModel dbQuestion = qs.findQuestionByQuestionId(question_id);
+
+        if (dbQuestion == null) {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
+
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        // authenticate the users
+        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+                || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
+        ) {
+            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+
+//        new File()
+        Path p = fileService.uploadFile(multiPartFile);
+        File file = ut.convertMultiPartToFile(multiPartFile);
+
+        FileModel fm = new FileModel();
+        String fileName = fm.getFileId() + "_" + multiPartFile.getOriginalFilename();
+        PutObjectResult por = storageService.uploadFile2(fileName, new File("/opt/tomcat/temp/" + multiPartFile.getOriginalFilename()));
+       // PutObjectResult por = storageService.uploadFile2(fileName, file.getName());
+        fm.setQuestionId(dbQuestion);
+        fm.setFileName(multiPartFile.getOriginalFilename());
+        fm.setS3BucketName("webapp.dhaval.pandya");
+        fm.setS3ObjectKey(fileName);
+        fm.setSseAlgorithm(por.getSSEAlgorithm());
+        fm.setCreatedTimestamp(new Date());
+        fs.saveFile(fm);
+
+        String[] list = {"file_name"
+                , "s3_object_name"
+                , "file_id"
+                , "created_date"
+                , "bucket_name"
+                , "sse_algorithm"
+        };
+
+        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"FileModelFilter"}, fm);
+        return new ResponseEntity<>(mapping, HttpStatus.CREATED);
+    }
+
+
+    @RequestMapping(value = "v1/question/{question_id}/answer/{answer_id}/file", method = RequestMethod.POST, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> uploadAnswerFile(
+            @PathVariable UUID question_id
+            , @RequestPart(value = "file") MultipartFile multiPartFile
+            , @RequestHeader(value = "Authorization") String value
+            , @PathVariable UUID answer_id) throws IOException {
+
+
+        AnswerModel am = qs.findAnswerByQuestionAndAnswerId(question_id, answer_id);
+        if (am == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        // authenticate the users
+        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+                || !am.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only creator can attach the file
+        ) {
+            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+
+        Path p = fileService.uploadFile(multiPartFile);
+
+        File file = ut.convertMultiPartToFile(multiPartFile);
+        FileModel fm = new FileModel();
+        String fileName = fm.getFileId() + "_" + multiPartFile.getOriginalFilename();
+        PutObjectResult por = storageService.uploadFile2(fileName, new File("/opt/tomcat/temp/"+multiPartFile.getOriginalFilename()));
+        fm.setQuestionId(am.getQuestionId());
+        fm.setFileName(multiPartFile.getOriginalFilename());
+        fm.setS3BucketName("webapp.dhaval.pandya");
+        fm.setS3ObjectKey(fileName);
+        fm.setSseAlgorithm(por.getSSEAlgorithm());
+        fm.setCreatedTimestamp(new Date());
+        fm.setAnswerId(am);
+        fs.saveFile(fm);
+
+        String[] list = {"file_name"
+                , "s3_object_name"
+                , "file_id"
+                , "created_date"
+                , "bucket_name"
+                , "sse_algorithm"
+        };
+
+        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"FileModelFilter"}, fm);
+        return new ResponseEntity<>(mapping, HttpStatus.CREATED);
+    }
+
+
+    @RequestMapping(value = "v1/question/{question_id}/file/{file_id}", method = RequestMethod.DELETE, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> deleteQuestionFile(
+            @PathVariable UUID question_id
+            , @RequestHeader(value = "Authorization") String value
+            , @PathVariable UUID file_id) throws IOException {
+        QuestionModel dbQuestion = qs.findQuestionByQuestionId(question_id);
+        FileModel fm = fs.getFileByID(file_id);
+
+        if (dbQuestion == null || fm == null ||
+                dbQuestion.getQuestionId() != fm.getQuestionId().getQuestionId()) {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
+
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        // authenticate the users
+        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+                || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
+        ) {
+            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+
+        storageService.deleteFile(fm.getS3ObjectKey());
+        fs.deleteFile(fm);
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
+
+    }
+    @RequestMapping(value = "v1/question/{question_id}/answer/{answer_id}/file/{file_id}", method = RequestMethod.DELETE, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> deleteQuestionFile(
+            @PathVariable UUID question_id
+            , @RequestHeader(value = "Authorization") String value
+            , @PathVariable UUID file_id,
+            @PathVariable UUID answer_id) throws IOException {
+        AnswerModel am = qs.findAnswerByQuestionAndAnswerId(question_id, answer_id);
+        FileModel fm = fs.getFileByID(file_id);
+
+        if (am == null || fm == null ||
+                (fm.getQuestionId().getQuestionId() != am.getQuestionId().getQuestionId()
+                || fm.getAnswerId().getAnswerId() != am.getAnswerId()
+                )
+        ) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+
+        String[] parseToken = ut.parseAuthorizationToken(value);
+        UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        // authenticate the users
+        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+                || !am.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only creator can attach the file
+        ) {
+            return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+        }
+
+        storageService.deleteFile(fm.getS3ObjectKey());
+        fs.deleteFile(fm);
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
 
     }
 
@@ -383,9 +596,18 @@ public class UserController {
                 , "question_text", "categories"
                 , "answers"
                 , "answer_text"
-                , "answer_id"};
+                , "answer_id"
+                , "attachments"
+                , "file_name"
+                , "s3_object_name"
+                , "file_id"
+                , "created_date"
+                , "bucket_name"
+                , "sse_algorithm"
+        };
 
-        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"AnswerModelFilter"}, am);
+        MappingJacksonValue mapping = ut.getDynamicResponse(list,
+                new String[]{"AnswerModelFilter", "FileModelFilter"}, am);
         return new ResponseEntity<>(mapping, HttpStatus.OK);
     }
 
@@ -402,10 +624,20 @@ public class UserController {
                 , "answers"
                 , "answer_text"
                 , "answer_id"
+                , "attachments"
+                , "file_name"
+                , "s3_object_name"
+                , "file_id"
+                , "created_date"
+                , "bucket_name"
+                , "sse_algorithm"
         };
 
+
+        List<QuestionModel> output = ut.removeDuplicateAttachments(qs.getAllQuestions());
+
         MappingJacksonValue mapping = ut.getDynamicResponse(list,
-                new String[]{"QuestionModelFilter", "AnswerModelFilter"}, qs.getAllQuestions());
+                new String[]{"QuestionModelFilter", "AnswerModelFilter", "FileModelFilter"}, output);
         return new ResponseEntity<>(mapping, HttpStatus.OK);
     }
 
@@ -417,24 +649,58 @@ public class UserController {
                 , "updated_timestamp"
                 , "user_id"
                 , "question_text", "categories"
-                , "answers"};
+                , "answers"
+                , "attachments"
+                , "file_name"
+                , "s3_object_name"
+                , "file_id"
+                , "created_date"
+                , "bucket_name"
+                , "sse_algorithm"
+        };
 
         QuestionModel qm = qs.findQuestionByQuestionId(questionId);
 
         if (qm == null) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
+        List<QuestionModel> ql = new ArrayList<>();
+        ql.add(qm);
+        List<QuestionModel> output = ut.removeDuplicateAttachments(ql);
 
-        MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"QuestionModelFilter"}, qm);
+        MappingJacksonValue mapping = ut.getDynamicResponse(list,
+                new String[]{"QuestionModelFilter", "FileModelFilter"}
+                , output.get(0));
         return new ResponseEntity<>(mapping, HttpStatus.OK);
     }
+
+
+
+
+
+    @RequestMapping(value = "v1/file", method = RequestMethod.POST, produces = "application/json")
+    @ResponseBody
+    public ResponseEntity<MappingJacksonValue> uploadAnswerFile(
+
+            @RequestPart(value = "file") MultipartFile multiPartFile
+      ) throws IOException {
+        fileService.uploadFile(multiPartFile);
+        return new ResponseEntity<>(HttpStatus.CREATED);
+    }
+
+
+
+
+
+
+
 
 
     // @exception handling
     @ExceptionHandler({NullPointerException.class
             , IllegalArgumentException.class, JsonProcessingException.class
             , JsonParseException.class
-            ,IndexOutOfBoundsException.class
+            , IndexOutOfBoundsException.class
     })
     void handleRuntimeException(NullPointerException e, HttpServletResponse response) throws IOException {
         response.sendError(HttpStatus.BAD_REQUEST.value());
