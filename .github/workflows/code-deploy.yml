@@ -59,7 +59,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: copy artifacts to s3
         run: |
-          aws s3 sync ./codedeploye_artifacts s3://codedeploy.dhavalpandya.me
+          aws s3 sync ./codedeploy_artifacts s3://codedeploy.dhavalpandya.me
 
       - name: codedeploy api call
         run: |
