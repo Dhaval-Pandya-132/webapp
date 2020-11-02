@@ -54,16 +54,16 @@ jobs:
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
-          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       - name: copy artifacts to s3
         run: |
-          aws s3 syncg ./codedeploye_artifacts s3://${{secrets.S3_CODE_DEPLOY_BUCKET}}
+          aws s3 sync ./codedeploye_artifacts s3://${{ secrets.S3_CODE_DEPLOY_BUCKET }}
 
       - name: codedeploy api call
         run: |
-          output=$(aws deploy push --application-name ${{ env.CODEDEPLOY_APPLICATIONNAME }} --output json --ignore-hidden-files --s3-location s3://${{secrets.S3_CODE_DEPLOY_BUCKET}}/${{env.ARTIFACT_NAME}} --source . --region ${{ env.AWS_REGION }})
+          output=$(aws deploy push --application-name ${{ env.CODEDEPLOY_APPLICATIONNAME }} --output json --ignore-hidden-files --s3-location s3://${{ secrets.S3_CODE_DEPLOY_BUCKET }}/${{ env.ARTIFACT_NAME }} --source . --region ${{ env.AWS_REGION }})
           echo $output
           dId=$(echo $output | jq -r '.deploymentId')
           aws deploy wait deployment-success --deployment-id $dId
