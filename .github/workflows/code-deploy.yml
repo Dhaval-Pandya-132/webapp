@@ -49,6 +49,7 @@ jobs:
           cd ..
           pwd
           ls -al
+          sudo chmod 777 codedeploy_artifacts
 
 
       - name: configure aws credentials
