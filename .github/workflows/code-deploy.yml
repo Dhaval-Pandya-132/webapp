@@ -72,7 +72,8 @@ jobs:
           --region ${{ env.AWS_REGION }} --output json)
           echo $output
           dId=$(echo $output | jq -r '.deploymentId')
-          aws deploy wait deployment-success --deployment-id $dId
+          echo ${dId}
+          aws deploy wait deployment-success --deployment-id ${dId}
 
 
 
