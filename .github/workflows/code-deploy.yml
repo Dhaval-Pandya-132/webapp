@@ -64,7 +64,7 @@ jobs:
 
       - name: codedeploy api call
         run: |
-          versionId=$(aws s3api head-object --bucket codedeploy.dhavalpandya.me --${{ env.ARTIFACT_NAME }} --output json --query 'VesrionId')
+          versionId=$(aws s3api head-object --bucket codedeploy.dhavalpandya.me --${{ env.ARTIFACT_NAME }} --output json --query 'VersionId')
           echo $versionId
           output=$(aws deploy create-deployment --application-name ${{ env.CODEDEPLOY_APPLICATIONNAME }} --deployment-group-name deploymentGroup --output json --ignore-hidden-files --s3-location  bucket=codedeploy.dhavalpandya.me,key=webapp.zip,version=$versionId  --region ${{ env.AWS_REGION }})
           echo $output
