@@ -3,6 +3,8 @@
 
 echo "pwd"
 
+cd /home/ubuntu/webapp
+
 pwd
 
 ls -al
