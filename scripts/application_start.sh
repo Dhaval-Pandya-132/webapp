@@ -16,4 +16,4 @@ cd /opt/tomcat/webapps/
 
 ls -al
 
-sudo systemctl start tomcat
+sudo /opt/tomcat/bin/startup.sh
