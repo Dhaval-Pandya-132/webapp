@@ -10,7 +10,7 @@ pwd
 ls -al
 
 
-sudo mv target/cloudcomputing-0.0.1-SNAPSHOT.war /opt/tomcat/webapps/
+sudo mv target/webapp.war /opt/tomcat/webapps/
 
 cd /opt/tomcat/webapps/
 
