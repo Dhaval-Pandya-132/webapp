@@ -217,7 +217,7 @@ public class UserController {
         if (am == null) {
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
-        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !am.getUserId().getId().toString().equalsIgnoreCase(um.getId().toString())
 
         ) {
@@ -250,7 +250,7 @@ public class UserController {
         if (am == null) {
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
-        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !am.getUserId().getId().toString().equalsIgnoreCase(um.getId().toString())
 
         ) {
@@ -289,7 +289,7 @@ public class UserController {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
         // authenticate the users
-        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
@@ -369,7 +369,7 @@ public class UserController {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
         // authenticate the users
-        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
@@ -421,7 +421,7 @@ public class UserController {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
         // authenticate the users
-        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !am.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only creator can attach the file
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
@@ -472,7 +472,7 @@ public class UserController {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
         // authenticate the users
-        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
@@ -504,7 +504,7 @@ public class UserController {
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
         // authenticate the users
-        if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
+        if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !am.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only creator can attach the file
         ) {
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
