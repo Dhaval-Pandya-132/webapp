@@ -37,7 +37,7 @@ jobs:
       - name:  Deployment artifacts
         run: |
           mkdir codedeploy_artifacts
-          zip -r ${{env.ARTIFACT_NAME}} target/cloudcomputing-0.0.1-SNAPSHOT.war scripts/*.sh appspec.yml
+          zip -r ${{env.ARTIFACT_NAME}} target/webapp.war scripts/*.sh appspec.yml
           pwd
           ls -al
           mv ${{env.ARTIFACT_NAME}} codedeploy_artifacts/
