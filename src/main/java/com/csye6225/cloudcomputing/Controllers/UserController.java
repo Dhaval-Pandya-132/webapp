@@ -1,11 +1,15 @@
 package com.csye6225.cloudcomputing.Controllers;
 
 import com.amazonaws.services.s3.model.PutObjectResult;
+import com.amazonaws.util.AWSRequestMetrics;
 import com.csye6225.cloudcomputing.Models.*;
 import com.csye6225.cloudcomputing.Utils.Utility;
 import com.csye6225.cloudcomputing.service.*;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.timgroup.statsd.NonBlockingStatsDClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.env.Environment;
@@ -15,6 +19,7 @@ import org.springframework.http.converter.json.MappingJacksonValue;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.timgroup.statsd.StatsDClient;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
@@ -27,6 +32,8 @@ import java.util.stream.Collectors;
 @RestController
 public class UserController {
 
+    private final static Logger lg = LoggerFactory.getLogger(UserController.class);
+    private final static StatsDClient stdclient = new NonBlockingStatsDClient("","localhost",8125);
     @Autowired
     UserServices us;
 
@@ -48,6 +55,7 @@ public class UserController {
     Utility ut;
 
 
+
     private S3StorageService storageService;
 
     @Autowired
@@ -58,12 +66,25 @@ public class UserController {
 
     @RequestMapping(value = "v1/user/self", method = RequestMethod.GET, produces = "application/json")
     public ResponseEntity<Map<String, String>> getUserDetail(@RequestHeader(value = "Authorization") String value) {
+        lg.info("get :v1/user/self is called");
+        long startTime = System.currentTimeMillis();
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("get.v1.user.self.count");
+        stdclient.incrementCounter("GET");
+
+
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
+        statsDClient.recordExecutionTime("get.v1.user.self.db.response.time", System.currentTimeMillis() - startTime);
+
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity<>(Collections.singletonMap("msg", "Unauthorized request"), HttpStatus.UNAUTHORIZED);
         }
+        lg.info("get :v1/user/self execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("get.v1.user.self.response.time", System.currentTimeMillis() - startTime);
+
         return new ResponseEntity<>(
                 ut.prepareResponse(um, "GET"),
                 HttpStatus.OK);
@@ -71,12 +92,20 @@ public class UserController {
 
     @RequestMapping(value = "v1/user/self", method = RequestMethod.PUT, produces = "application/json")
     public ResponseEntity<Map<String, String>> updateUserDetail(@RequestBody @Valid UserModel user, @RequestHeader(value = "Authorization") String value) {
+        lg.info("put :v1/user/self is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("PUT");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("put.v1.user.self.count");
+
         UserModel um = us.getUserByEmailAddress(user.getUsername());
         if (um == null || ut.validateAuthorization(value, user.getUsername(), um.getPassword())
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity<>(Collections.singletonMap("msg", "Unauthorized request"), HttpStatus.UNAUTHORIZED);
         }
         if (!ut.checkPasswordStrength(user.getPassword())) {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity<>(
                     Collections.singletonMap("msg", "Password length should be greater than 8 character " +
                             ", and contains at least 1 special character,digit and 1 Upper case character" +
@@ -90,6 +119,11 @@ public class UserController {
         um.setPassword(ut.BCryptPassword(user.getPassword()));
         um.setUpdatedDatetime(new Date());
         us.save(um);
+        statsDClient.recordExecutionTime("put.v1.user.self.db.response.time", System.currentTimeMillis() - startTime);
+
+
+        lg.info("put :v1/user/self execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("put.v1.user.self.response.time", System.currentTimeMillis() - startTime);
 
         return new ResponseEntity<>(
                 ut.prepareResponse(user, "PUT"),
@@ -100,16 +134,25 @@ public class UserController {
     @ResponseBody
     public ResponseEntity<MappingJacksonValue> addNewQuestion(@RequestBody QuestionModel question
             , @RequestHeader(value = "Authorization") String value) {
+
+        lg.info("post :v1/question/ is called");
+        long startTime = System.currentTimeMillis();
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("post.v1.question.count");
+        stdclient.incrementCounter("POST");
+
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
         // authenticate the users
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
         if (question.getQuestionText() == null
                 || question.getQuestionText().equalsIgnoreCase("")) {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
@@ -126,6 +169,7 @@ public class UserController {
         question.setCategories(output.get(0));
         cs.save(output.get(1));
         qs.save(question);
+        statsDClient.recordExecutionTime("post.v1.question.db.response.time", System.currentTimeMillis() - startTime);
 
         String[] list = {"question_id"
                 , "created_timestamp"
@@ -145,6 +189,9 @@ public class UserController {
 
         MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"QuestionModelFilter", "FileModelFilter"}
                 , question);
+        lg.info("post :v1/question/ execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("post.v1.question.response.time", System.currentTimeMillis() - startTime);
+
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
     }
 
@@ -154,20 +201,29 @@ public class UserController {
             , @RequestBody AnswerModel am
             , @RequestHeader(value = "Authorization") String value) {
 
+        lg.info("post :v1/question/{questionId}/answer is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("POST");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("post.v1.question.questionId.answer.count");
+
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
         QuestionModel qmw = qs.findQuestionByQuestionId(questionId);
 
         if (qmw == null) {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
         if (am == null ||
                 am.getAnswerText().equalsIgnoreCase("")) {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
@@ -194,9 +250,13 @@ public class UserController {
         amOut.setCreatedTimestamp(new Date());
         amOut.setUpdatedTimestamp(new Date());
         AnswerModel answerModel = as.saveAnswer(amOut);
+        statsDClient.recordExecutionTime("post.v1.question.questionId.answer.db.response.time", System.currentTimeMillis() - startTime);
 
         MappingJacksonValue mapping = ut.getDynamicResponse(list,
                 new String[]{"AnswerModelFilter", "FileModelFilter"}, answerModel);
+        lg.info("post :v1/question/{questionId}/answer execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("post.v1.question.questionId.answer.response.time", System.currentTimeMillis() - startTime);
+
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
 
     }
@@ -209,29 +269,44 @@ public class UserController {
             , @RequestBody AnswerModel answerModel
             , @RequestHeader(value = "Authorization") String value
     ) {
+        lg.info("put :v1/question/{questionId}/answer/{answerId} is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("PUT");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("put.v1.question.questionId.answer.answerId.count");
+
+
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
 
         AnswerModel am = qs.findAnswerByQuestionAndAnswerId(questionId, answerId);
 
         if (am == null) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !am.getUserId().getId().toString().equalsIgnoreCase(um.getId().toString())
 
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
         if (answerModel == null ||
                 answerModel.getAnswerText().equalsIgnoreCase("")) {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
         am.setAnswerText(answerModel.getAnswerText());
         am.setUpdatedTimestamp(new Date());
         as.saveAnswer(am);
+        statsDClient.recordExecutionTime("put.v1.question.questionId.answer.answerId.db.response.time", System.currentTimeMillis() - startTime);
+
+
+        lg.info("put :v1/question/{questionId}/answer/{answerId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("put.v1.question.questionId.answer.answerId.response.time", System.currentTimeMillis() - startTime);
 
         return new ResponseEntity(HttpStatus.NO_CONTENT);
 
@@ -243,17 +318,25 @@ public class UserController {
             , @PathVariable UUID answerId
             , @RequestHeader(value = "Authorization") String value
     ) {
+        lg.info("delete :v1/question/{questionId}/answer/{answerId} is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("DELETE");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("delete.v1.question.questionId.answer.answerId.count");
+
         String[] parseToken = ut.parseAuthorizationToken(value);
         UserModel um = us.getUserByEmailAddress(parseToken[0]);
         AnswerModel am = qs.findAnswerByQuestionAndAnswerId(questionId, answerId);
 
         if (am == null) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !am.getUserId().getId().toString().equalsIgnoreCase(um.getId().toString())
 
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
@@ -263,9 +346,12 @@ public class UserController {
             storageService.deleteFile(file.getS3ObjectKey());
         }
 
-
-
         as.deleteAnswer(am.getAnswerId());
+        statsDClient.recordExecutionTime("delete.v1.question.questionId.answer.answerId.db.response.time", System.currentTimeMillis() - startTime);
+
+
+        lg.info("delete :v1/question/{questionId}/answer/{answerId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("delete.v1.question.questionId.answer.answerId.response.time", System.currentTimeMillis() - startTime);
         return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
@@ -280,10 +366,16 @@ public class UserController {
     @ResponseBody
     public ResponseEntity<String> deleteQuestion(@PathVariable UUID questionId
             , @RequestHeader(value = "Authorization") String value) {
+        lg.info("delete :v1/question/{questionId} is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("DELETE");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("delete.v1.question.questionId.count");
 
         QuestionModel dbQuestion = qs.findQuestionByQuestionId(questionId);
 
         if (dbQuestion == null) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
         String[] parseToken = ut.parseAuthorizationToken(value);
@@ -292,6 +384,7 @@ public class UserController {
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
@@ -308,7 +401,10 @@ public class UserController {
 
 
         qs.deleteQuestion(dbQuestion);
+        statsDClient.recordExecutionTime("delete.v1.question.questionId.db.response.time", System.currentTimeMillis() - startTime);
 
+        lg.info("delete :v1/question/{questionId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("delete.v1.question.questionId.response.time", System.currentTimeMillis() - startTime);
         return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
@@ -317,9 +413,17 @@ public class UserController {
     public ResponseEntity<String> updateQuestion(@PathVariable UUID questionId
             , @RequestBody QuestionModel question
             , @RequestHeader(value = "Authorization") String value) {
+
+
+        lg.info("put :v1/question/{questionId} is called");
+        long startTime = System.currentTimeMillis();
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("put.v1.question.questionId.count");
+        stdclient.incrementCounter("PUT");
         QuestionModel dbQuestion = qs.findQuestionByQuestionId(questionId);
 
         if (dbQuestion == null) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
 
@@ -329,11 +433,13 @@ public class UserController {
         if (ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
         if (question.getQuestionText() == null
                 || question.getQuestionText().equalsIgnoreCase("")) {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
@@ -348,6 +454,11 @@ public class UserController {
         dbQuestion.setUserId(um);
         cs.save(output.get(1));
         qs.save(dbQuestion);
+        statsDClient.recordExecutionTime("put.v1.question.questionId.db.response.time", System.currentTimeMillis() - startTime);
+
+        lg.info("put :v1/question/{questionId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("put.v1.question.questionId.response.time", System.currentTimeMillis() - startTime);
+
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
 
     }
@@ -360,9 +471,16 @@ public class UserController {
             , @RequestHeader(value = "Authorization") String value
     ) throws IOException {
 
+        lg.info("post :v1/question/{question_id}/file is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("POST");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("post.v1.question.question_id.file.count");
+
         QuestionModel dbQuestion = qs.findQuestionByQuestionId(question_id);
 
         if (dbQuestion == null) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
 
@@ -372,6 +490,7 @@ public class UserController {
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
@@ -390,6 +509,7 @@ public class UserController {
         fm.setSseAlgorithm(por.getSSEAlgorithm());
         fm.setCreatedTimestamp(new Date());
         fs.saveFile(fm);
+        statsDClient.recordExecutionTime("post.v1.question.question_id.file.s3bucket.response.time", System.currentTimeMillis() - startTime);
 
         String[] list = {"file_name"
                 , "s3_object_name"
@@ -400,6 +520,9 @@ public class UserController {
         };
 
         MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"FileModelFilter"}, fm);
+
+        lg.info("post :v1/question/{question_id}/file execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("post.v1.question.question_id.file.response.time", System.currentTimeMillis() - startTime);
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
     }
 
@@ -412,9 +535,16 @@ public class UserController {
             , @RequestHeader(value = "Authorization") String value
             , @PathVariable UUID answer_id) throws IOException {
 
+        lg.info("post :v1/question/{question_id}/answer/{answer_id}/file is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("POST");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("post.v1.question.question_id.answer.answer_id.file.count");
+
 
         AnswerModel am = qs.findAnswerByQuestionAndAnswerId(question_id, answer_id);
         if (am == null) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
 
@@ -424,6 +554,7 @@ public class UserController {
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !am.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only creator can attach the file
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
@@ -441,6 +572,7 @@ public class UserController {
         fm.setCreatedTimestamp(new Date());
         fm.setAnswerId(am);
         fs.saveFile(fm);
+        statsDClient.recordExecutionTime("post.v1.question.question_id.answer.answer_id.file.s3bucket.response.time", System.currentTimeMillis() - startTime);
 
         String[] list = {"file_name"
                 , "s3_object_name"
@@ -451,6 +583,10 @@ public class UserController {
         };
 
         MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"FileModelFilter"}, fm);
+
+        lg.info("post :v1/question/{question_id}/file execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("post.v1.question.question_id.answer.answer_id.file.response.time", System.currentTimeMillis() - startTime);
+
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
     }
 
@@ -461,11 +597,19 @@ public class UserController {
             @PathVariable UUID question_id
             , @RequestHeader(value = "Authorization") String value
             , @PathVariable UUID file_id) throws IOException {
+        lg.info("delete :v1/question/{question_id}/file/{file_id} is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("DELETE");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("delete.v1.question.question_id.file.file_id.count");
+
+
         QuestionModel dbQuestion = qs.findQuestionByQuestionId(question_id);
         FileModel fm = fs.getFileByID(file_id);
 
         if (dbQuestion == null || fm == null ||
                 dbQuestion.getQuestionId() != fm.getQuestionId().getQuestionId()) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
 
@@ -475,21 +619,36 @@ public class UserController {
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !dbQuestion.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only create can update question
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
         storageService.deleteFile(fm.getS3ObjectKey());
         fs.deleteFile(fm);
+        statsDClient.recordExecutionTime("delete.v1.question.question_id.file.file_id.s3bucket.response.time", System.currentTimeMillis() - startTime);
+
+        lg.info("delete :v1/question/{question_id}/file/{file_id}  execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("delete.v1.question.question_id.file.file_id.response.time", System.currentTimeMillis() - startTime);
+
         return new ResponseEntity(HttpStatus.NO_CONTENT);
 
     }
-    @RequestMapping(value = "v1/question/{question_id}/answer/{answer_id}/file/{file_id}", method = RequestMethod.DELETE, produces = "application/json")
+    @RequestMapping(value = "v1/question/{question_id}/answer/{answer_id}/file/{file_id}",
+            method = RequestMethod.DELETE, produces = "application/json")
     @ResponseBody
     public ResponseEntity<MappingJacksonValue> deleteQuestionFile(
             @PathVariable UUID question_id
             , @RequestHeader(value = "Authorization") String value
             , @PathVariable UUID file_id,
             @PathVariable UUID answer_id) throws IOException {
+
+        lg.info("delete :v1/question/{question_id}/answer/{answer_id}/file/{file_id} is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("DELETE");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("delete.v1.question.question_id.answer.answer_id.file.file_id.count");
+
+
         AnswerModel am = qs.findAnswerByQuestionAndAnswerId(question_id, answer_id);
         FileModel fm = fs.getFileByID(file_id);
 
@@ -498,6 +657,7 @@ public class UserController {
                 || fm.getAnswerId().getAnswerId() != am.getAnswerId()
                 )
         ) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
 
@@ -507,11 +667,17 @@ public class UserController {
         if (um == null || ut.validateAuthorization(value, parseToken[0], um.getPassword())
                 || !am.getUserId().getUsername().equalsIgnoreCase(parseToken[0])  // Only creator can attach the file
         ) {
+            stdclient.incrementCounter("Unauthorized");
             return new ResponseEntity(HttpStatus.UNAUTHORIZED);
         }
 
         storageService.deleteFile(fm.getS3ObjectKey());
         fs.deleteFile(fm);
+        statsDClient.recordExecutionTime("delete.v1.question.question_id.answer.answer_id.file.file_id.s3bucket.response.time", System.currentTimeMillis() - startTime);
+
+
+        lg.info("delete :v1/question/{question_id}/file/{file_id}  execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("delete.v1.question.question_id.answer.answer_id.file.file_id.response.time", System.currentTimeMillis() - startTime);
         return new ResponseEntity(HttpStatus.NO_CONTENT);
 
     }
@@ -526,13 +692,21 @@ public class UserController {
     @RequestMapping(value = "v1/user", method = RequestMethod.POST, produces = "application/json")
     @ResponseBody
     public ResponseEntity<Map<String, String>> createNewUser(@RequestBody UserModel user) {
+        lg.info("post :v1/user is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("POST");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("post.v1.user.count");
+
         UserModel um = us.getUserByEmailAddress(user.getUsername());
         if (user.getUpdatedDatetime() != null || user.getCreatedDatetime() != null) {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity<>(
                     Collections.singletonMap("msg", "Invalid request parameters"),
                     HttpStatus.BAD_REQUEST);
         }
         if (!ut.validateEmailAddress(user.getUsername())) {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity<>(
                     Collections.singletonMap("msg", "Invalid Email address"),
                     HttpStatus.BAD_REQUEST);
@@ -540,11 +714,13 @@ public class UserController {
 
         if (um != null) // Check if email address is already exist or not
         {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity<>(
                     Collections.singletonMap("msg", "Email address is already exist"),
                     HttpStatus.BAD_REQUEST);
         }
         if (!ut.checkPasswordStrength(user.getPassword())) {
+            stdclient.incrementCounter("Badrequest");
             return new ResponseEntity<>(
                     Collections.singletonMap("msg", "Password length should be greater than 8 character " +
                             ", and contains at least 1 special character,digit and 1 Upper case character" +
@@ -557,6 +733,10 @@ public class UserController {
         user.setUpdatedDatetime(new Date());
         user.setPassword(ut.BCryptPassword(user.getPassword()));
         us.save(user);
+
+        statsDClient.recordExecutionTime("post.v1.user.response.time", System.currentTimeMillis() - startTime);
+
+        lg.info("post :v1/user is called  execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
         return new ResponseEntity<>(
                 ut.prepareResponse(user, "POST"),
                 HttpStatus.CREATED);
@@ -571,12 +751,23 @@ public class UserController {
                 , "username"
                 , "account_created", "account_updated"
         };
+        lg.info("get :v1/user/{id} is called");
+        long startTime = System.currentTimeMillis();
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("get.v1.user.id.count");
+        stdclient.incrementCounter("GET");
 
         UserModel um = us.getById(id);
+        statsDClient.recordExecutionTime("get.v1.user.id.db.response.time", System.currentTimeMillis() - startTime);
+
         if (um == null) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
         MappingJacksonValue mapping = ut.getDynamicResponse(list, new String[]{"UserModelFilter"}, um);
+
+        lg.info("get :v1/user/{id} is called  execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("get.v1.user.id.response.time", System.currentTimeMillis() - startTime);
         return new ResponseEntity<>(mapping, HttpStatus.OK);
 
     }
@@ -584,8 +775,18 @@ public class UserController {
     @RequestMapping(value = "v1/question/{question_id}/answer/{answer_id}", method = RequestMethod.GET, produces = "application/json")
     @ResponseBody
     public ResponseEntity<MappingJacksonValue> getAnswerByID(@PathVariable UUID question_id, @PathVariable UUID answer_id) {
+
+        lg.info("get :v1/question/{question_id}/answer/{answer_id} is called");
+        long startTime = System.currentTimeMillis();
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("get.v1.question.question_id.answer.answer_id.count");
+        stdclient.incrementCounter("GET");
+
         AnswerModel am = qs.findAnswerByQuestionAndAnswerId(question_id, answer_id);
+        statsDClient.recordExecutionTime("get.v1.question.question_id.answer.answer_id.db.response.time", System.currentTimeMillis() - startTime);
+
         if (am == null) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
 
@@ -608,12 +809,21 @@ public class UserController {
 
         MappingJacksonValue mapping = ut.getDynamicResponse(list,
                 new String[]{"AnswerModelFilter", "FileModelFilter"}, am);
+
+        lg.info("get :v1/question/{question_id}/answer/{answer_id} is called  execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("get.v1.question.question_id.answer.answer_id.response.time", System.currentTimeMillis() - startTime);
         return new ResponseEntity<>(mapping, HttpStatus.OK);
     }
 
     @RequestMapping(value = "v1/questions", method = RequestMethod.GET, produces = "application/json")
     @ResponseBody
     public ResponseEntity<MappingJacksonValue> getAllQuestions() {
+
+        lg.info("get :v1/questions is called");
+        long startTime = System.currentTimeMillis();
+        stdclient.incrementCounter("GET");
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("get.v1.questions.count");
 
         String[] list = {"question_id"
                 , "created_timestamp"
@@ -633,12 +843,24 @@ public class UserController {
                 , "sse_algorithm"
         };
 
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        lg.info("get :v1/questions fetching all questions");
 
         List<QuestionModel> output = ut.removeDuplicateAttachments(qs.getAllQuestions());
 
+        statsDClient.recordExecutionTime("get.v1.questions.db.response.time", System.currentTimeMillis() - startTime);
+
         MappingJacksonValue mapping = ut.getDynamicResponse(list,
                 new String[]{"QuestionModelFilter", "AnswerModelFilter", "FileModelFilter"}, output);
+
+        lg.info("get :v1/questions execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("get.v1.questions.response.time", System.currentTimeMillis() - startTime);
         return new ResponseEntity<>(mapping, HttpStatus.OK);
+
     }
 
     @RequestMapping(value = "v1/question/{questionId}", method = RequestMethod.GET, produces = "application/json")
@@ -659,9 +881,18 @@ public class UserController {
                 , "sse_algorithm"
         };
 
+        lg.info("get :v1/question/{questionId} is called");
+        long startTime = System.currentTimeMillis();
+        StatsDClient statsDClient = new NonBlockingStatsDClient("","localhost",8125);
+        statsDClient.incrementCounter("get.v1.question.questionId.count");
+        stdclient.incrementCounter("GET");
+
         QuestionModel qm = qs.findQuestionByQuestionId(questionId);
 
+        statsDClient.recordExecutionTime("get.v1.question.questionId.db.response.time", System.currentTimeMillis() - startTime);
+
         if (qm == null) {
+            stdclient.incrementCounter("Notfound");
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
         List<QuestionModel> ql = new ArrayList<>();
@@ -671,6 +902,10 @@ public class UserController {
         MappingJacksonValue mapping = ut.getDynamicResponse(list,
                 new String[]{"QuestionModelFilter", "FileModelFilter"}
                 , output.get(0));
+
+        lg.info("get :v1/question/{questionId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
+        statsDClient.recordExecutionTime("get.v1.question.questionId.response.time", System.currentTimeMillis() - startTime);
+
         return new ResponseEntity<>(mapping, HttpStatus.OK);
     }
 
