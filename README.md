@@ -19,6 +19,7 @@ This project required following dependencies
    - [ ] Java JDK 1.8
    - [ ] MySQL server 8.0.21
 
+
 Maven Dependencies 
     
    - [ ] spring-boot-starter-data-jpa
