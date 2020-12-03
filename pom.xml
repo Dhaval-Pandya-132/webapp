@@ -20,6 +20,7 @@
         <start-class>
             com.csye6225.cloudcomputing.CloudcomputingApplication
         </start-class>
+        <spring-cloud.version>Finchley.SR1</spring-cloud.version>
     </properties>
 
     <dependencies>
@@ -74,7 +75,7 @@
         <dependency>
             <groupId>org.hibernate</groupId>
             <artifactId>hibernate-core</artifactId>
-            <version>5.4.2.Final</version>
+<!--            <version>5.4.2.Final</version>-->
         </dependency>
         <dependency>
             <groupId>org.passay</groupId>
@@ -87,24 +88,46 @@
             <artifactId>spring-boot-starter-tomcat</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk-s3 -->
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-s3</artifactId>
-            <version>1.11.18</version>
+<!--            <version>1.11.909</version>-->
         </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk-core -->
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-core</artifactId>
-            <version>1.11.220</version>
+<!--            <version>1.11.909</version>-->
         </dependency>
+
         <!-- https://mvnrepository.com/artifact/com.timgroup/java-statsd-client -->
         <dependency>
             <groupId>com.timgroup</groupId>
             <artifactId>java-statsd-client</artifactId>
             <version>3.1.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-aws</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-aws-messaging</artifactId>
+        </dependency>
     </dependencies>
-
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     <build>
         <finalName>webapp</finalName>
         <plugins>
