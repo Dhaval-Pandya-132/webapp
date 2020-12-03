@@ -1,7 +1,10 @@
 package com.csye6225.cloudcomputing.Controllers;
 
 import com.amazonaws.services.s3.model.PutObjectResult;
+import com.amazonaws.services.sns.AmazonSNSClient;
+import com.amazonaws.services.sns.model.PublishRequest;
 import com.amazonaws.util.AWSRequestMetrics;
+import com.csye6225.cloudcomputing.AwsSNSConfig;
 import com.csye6225.cloudcomputing.Models.*;
 import com.csye6225.cloudcomputing.Utils.Utility;
 import com.csye6225.cloudcomputing.service.*;
@@ -12,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,6 +59,15 @@ public class UserController {
     Utility ut;
 
 
+    // Topic arn. Developers are free to choose their topic arn.
+    @Value("${app.snstopic}")
+    private static String TOPIC_ARN;
+
+    @Autowired
+    private Environment env;
+
+    @Autowired
+    private AmazonSNSClient amazonSNSClient;
 
     private S3StorageService storageService;
 
@@ -257,6 +270,12 @@ public class UserController {
         lg.info("post :v1/question/{questionId}/answer execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
         statsDClient.recordExecutionTime("post.v1.question.questionId.answer.response.time", System.currentTimeMillis() - startTime);
 
+        String message = "addAnswer"+"|"+amOut.getAnswerId()
+                + "|" +amOut.getQuestionId().getQuestionId()+"|"+ amOut.getQuestionId().getQuestionText()
+                +"|"+am.getAnswerText() +"|"+ amOut.getQuestionId().getUserId().getUsername();
+
+        final PublishRequest publishRequest = new PublishRequest(env.getProperty("app.snstopic"),message);
+        amazonSNSClient.publish(publishRequest);
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
 
     }
@@ -308,6 +327,13 @@ public class UserController {
         lg.info("put :v1/question/{questionId}/answer/{answerId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
         statsDClient.recordExecutionTime("put.v1.question.questionId.answer.answerId.response.time", System.currentTimeMillis() - startTime);
 
+        String message = "updateAnswer"+"|"+am.getAnswerId()
+                + "|" +am.getQuestionId().getQuestionId()+"|"+ am.getQuestionId().getQuestionText()
+                +"|"+am.getAnswerText() +"|"+ am.getQuestionId().getUserId().getUsername();
+
+        final PublishRequest publishRequest = new PublishRequest(env.getProperty("app.snstopic"),message);
+        amazonSNSClient.publish(publishRequest);
+
         return new ResponseEntity(HttpStatus.NO_CONTENT);
 
     }
@@ -352,6 +378,16 @@ public class UserController {
 
         lg.info("delete :v1/question/{questionId}/answer/{answerId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
         statsDClient.recordExecutionTime("delete.v1.question.questionId.answer.answerId.response.time", System.currentTimeMillis() - startTime);
+
+
+        String message = "deleteAnswer"+"|"+am.getAnswerId()
+                + "|" +am.getQuestionId().getQuestionId()+"|"+ am.getQuestionId().getQuestionText()
+                +"|"+am.getAnswerText() +"|"+ am.getQuestionId().getUserId().getUsername();
+
+        final PublishRequest publishRequest = new PublishRequest(env.getProperty("app.snstopic"),message);
+        amazonSNSClient.publish(publishRequest);
+
+
         return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
@@ -405,6 +441,11 @@ public class UserController {
 
         lg.info("delete :v1/question/{questionId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
         statsDClient.recordExecutionTime("delete.v1.question.questionId.response.time", System.currentTimeMillis() - startTime);
+
+//        String message = "deleteQuestion"+"|" + dbQuestion.getQuestionId()+"|" + dbQuestion.getQuestionText() +"|"+ um.getUsername();
+//        final PublishRequest publishRequest = new PublishRequest(TOPIC_ARN,message);
+//        amazonSNSClient.publish(publishRequest);
+
         return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
@@ -458,6 +499,10 @@ public class UserController {
 
         lg.info("put :v1/question/{questionId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
         statsDClient.recordExecutionTime("put.v1.question.questionId.response.time", System.currentTimeMillis() - startTime);
+
+//        String message = "updateQuestion"+"|" + dbQuestion.getQuestionId()+"|" +"|"+ dbQuestion.getQuestionText() +"|"+ um.getUsername();
+//        final PublishRequest publishRequest = new PublishRequest(TOPIC_ARN,message);
+//        amazonSNSClient.publish(publishRequest);
 
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
 
@@ -523,6 +568,8 @@ public class UserController {
 
         lg.info("post :v1/question/{question_id}/file execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
         statsDClient.recordExecutionTime("post.v1.question.question_id.file.response.time", System.currentTimeMillis() - startTime);
+
+
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
     }
 
@@ -564,6 +611,7 @@ public class UserController {
         FileModel fm = new FileModel();
         String fileName = fm.getFileId() + "_" + multiPartFile.getOriginalFilename();
         PutObjectResult por = storageService.uploadFile2(fileName, new File("/opt/tomcat/temp/"+multiPartFile.getOriginalFilename()));
+
         fm.setQuestionId(am.getQuestionId());
         fm.setFileName(multiPartFile.getOriginalFilename());
         fm.setS3BucketName("webapp.dhaval.pandya");
@@ -586,6 +634,13 @@ public class UserController {
 
         lg.info("post :v1/question/{question_id}/file execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
         statsDClient.recordExecutionTime("post.v1.question.question_id.answer.answer_id.file.response.time", System.currentTimeMillis() - startTime);
+
+        String message = "uploadFileAnswer"+"|"+am.getAnswerId()
+                + "|" +am.getQuestionId().getQuestionId()+"|"+ am.getQuestionId().getQuestionText()
+                +"|"+am.getAnswerText() +"|"+ am.getQuestionId().getUserId().getUsername();
+
+        final PublishRequest publishRequest = new PublishRequest(env.getProperty("app.snstopic"),message);
+        amazonSNSClient.publish(publishRequest);
 
         return new ResponseEntity<>(mapping, HttpStatus.CREATED);
     }
@@ -819,6 +874,8 @@ public class UserController {
     @ResponseBody
     public ResponseEntity<MappingJacksonValue> getAllQuestions() {
 
+
+        System.out.println("topic arn :"+TOPIC_ARN  + "----"+ env.getProperty("app.snstopic"));
         lg.info("get :v1/questions is called");
         long startTime = System.currentTimeMillis();
         stdclient.incrementCounter("GET");
@@ -869,6 +926,7 @@ public class UserController {
         String[] list = {"question_id"
                 , "created_timestamp"
                 , "updated_timestamp"
+                ,"answer_id"
                 , "user_id"
                 , "question_text", "categories"
                 , "answers"
@@ -890,22 +948,23 @@ public class UserController {
         QuestionModel qm = qs.findQuestionByQuestionId(questionId);
 
         statsDClient.recordExecutionTime("get.v1.question.questionId.db.response.time", System.currentTimeMillis() - startTime);
-
+        lg.info("get :v1/question/{questionId} debug 1");
         if (qm == null) {
             stdclient.incrementCounter("Notfound");
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
+        lg.info("get :v1/question/{questionId} debug 2");
         List<QuestionModel> ql = new ArrayList<>();
         ql.add(qm);
         List<QuestionModel> output = ut.removeDuplicateAttachments(ql);
-
+        lg.info("get :v1/question/{questionId} debug 3" + output);
         MappingJacksonValue mapping = ut.getDynamicResponse(list,
-                new String[]{"QuestionModelFilter", "FileModelFilter"}
+                new String[]{"QuestionModelFilter","AnswerModelFilter", "FileModelFilter"}
                 , output.get(0));
-
+        lg.info("get :v1/question/{questionId} debug 4" + mapping);
         lg.info("get :v1/question/{questionId} execution time : "+ (System.currentTimeMillis() - startTime) +"ms");
         statsDClient.recordExecutionTime("get.v1.question.questionId.response.time", System.currentTimeMillis() - startTime);
-
+      //  return new ResponseEntity<>(HttpStatus.OK);
         return new ResponseEntity<>(mapping, HttpStatus.OK);
     }
 
